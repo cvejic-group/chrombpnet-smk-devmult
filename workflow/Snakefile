@@ -1,0 +1,380 @@
+configfile: "config/config.yaml"
+
+import os
+from sys import stderr
+
+# print to stderr
+def message(*args, **kwargs):
+    print(*args, file=stderr, **kwargs)
+
+# ensure tmp directory exists
+os.makedirs(config['tmp_dir'], exist_ok=True)
+
+# load sample data
+message("[INFO] Checking sample info...")
+samples = config['samples']
+message(f"[INFO]   Found {len(samples.keys())} samples.")
+
+# load BED peak info
+message("[INFO] Checking peaks info...")
+peak_beds = config['peak_bed']
+message(f"[INFO]   Found {len(peak_beds.keys())} peak files.")
+
+# match samples
+matched_sample_ids = samples.keys() & peak_beds.keys()
+message(f"[INFO]   Found {len(matched_sample_ids)} samples with matched peaks.")
+
+wildcard_constraints:
+    sample="[^/.]+",
+    bam_id="[^/]+"
+
+################################################################################
+## MAIN
+################################################################################
+
+rule all:
+    input:
+        ## cell types (pretrained bias)
+        expand("results/chrombpnet_nobias/pretrained_bias/{sample}/{fold_id}/evaluation/{sample}_{fold_id}._overall_report.pdf",
+               fold_id='fold_0', #config['folds'].keys(), 
+               sample=[s for s in matched_sample_ids if "PCW" not in s]),
+        ## cell types (custom bias)
+        #expand("results/chrombpnet_nobias/{sample}/{fold_id}/evaluation/{sample}_{fold_id}._overall_report.pdf",
+        #       fold_id='fold_0', #config['folds'].keys(), 
+        #       sample=[s for s in matched_sample_ids if "PCW" not in s]),
+        ## cell types x PCW
+        #expand("results/chrombpnet_nobias/{sample}/{fold_id}/evaluation/{sample}_{fold_id}._overall_report.pdf",
+        #       fold_id=config['folds'].keys(), sample=[s for s in matched_sample_ids if "PCW" in s])
+
+################################################################################
+## DOWNLOADING
+################################################################################
+
+rule download_genome:
+    output:
+        fa=config['genome']['file']
+    params:
+        url=config['genome']['url']
+    threads: 4
+    conda: "chrombpnet_0_1_7"
+    shell:
+      """
+      wget -O {output.fa}.gz {params.url}
+      bgzip -@{threads} -d {output.fa}.gz
+      """
+
+rule download_chrom_sizes:
+    output:
+        tsv=config['chrom_sizes']['file']
+    params:
+        url=config['chrom_sizes']['url']
+    threads: 1
+    shell:
+      """
+      wget -O {output.tsv} {params.url}
+      """
+
+rule download_blacklist:
+    output:
+        bed=config['blacklist_regions']['file']
+    params:
+        url=config['blacklist_regions']['url']
+    threads: 1
+    shell:
+      """
+      wget -O {output.bed} {params.url}
+      """
+
+def get_fold_url(wcs):
+    if not wcs.fold_id in config['folds'].keys():
+        message(f"[Error] Fold '{wcs.fold_id}' not found in configuration!")
+        message("Available folds:", *config['folds'].keys(), sep="\n")
+        exit(1)
+    
+    return config['folds'][wcs.fold_id]
+
+rule download_fold:
+    output:
+        "resources/folds/{fold_id}.json"
+    params:
+        url=get_fold_url
+    threads: 1
+    shell:
+      """
+      wget -O {output} {params.url}
+      """
+
+rule download_pretrained_bias:
+    output: config['pretrained_bias']['h5']
+    params:
+        url=config['pretrained_bias']['url'],
+        outdir=config['pretrained_bias']['outdir'],
+        filepath=config['pretrained_bias']['filepath']
+    shell:
+        """
+        tmpfile=$(mktemp --suffix=.zip)
+        wget -O "$tmpfile" '{params.url}'
+        unzip -j "$tmpfile" {params.filepath} -d {params.outdir}
+        rm "$tmpfile"
+        """
+
+################################################################################
+## BAM to Peaks
+################################################################################
+
+def get_sample_bam(wcs):
+    if not wcs.sample in samples.keys():
+        message(f"[Error] Sample '{wcs.sample}' not found in configuration!")
+        exit(1)
+    
+    return samples[wcs.sample]
+
+rule bam_to_bedpe:
+    input:
+        get_sample_bam
+    output:
+        temp("resources/bedpe/{sample}.bedpe.gz")
+    threads: 1
+    conda: "chrombpnet_0_1_7"
+    shell:
+        """
+        bedtools bamtobed -bedpe -mate1 -i {input} | gzip -nc > {output}
+        """
+
+rule bedpe_to_tagalign:
+    input:
+        "resources/bedpe/{sample}.bedpe.gz"
+    output:
+        "resources/tagalign/{sample}.tagAlign.gz"
+    conda: "chrombpnet_0_1_7"
+    threads: 1
+    shell:
+        """
+        zcat {input} | awk 'BEGIN{{OFS="\t"}}{{printf "%s\t%s\t%s\tN\t1000\t%s\n%s\t%s\t%s\tN\t1000\t%s\n",$1,$2,$3,$9,$4,$5,$6,$10}}' | \\
+          gzip -nc > {output}
+        """
+
+rule tagalign_to_peak:
+    input:
+        "resources/tagalign/{sample}.tagAlign.gz"
+    output:
+        "resources/peaks/raw/{sample}.bed.gz"
+    params:
+        gsize=config['peaks']['gsize'],
+        max_peaks=config['peaks']['max_peaks'],
+        pval=config['peaks']['pval_thresh'],
+        smooth_win=config['peaks']['smooth_window'],
+        outdir="resources/peaks/raw"
+    conda: "envs/macs2.yaml"
+    threads: 1
+    shell:
+        """
+        shiftsize=$(( -{params.smooth_win}/2 ))
+        macs2 callpeak \\
+            -t {input} \\
+            -f BED \\
+            -o {params.outdir} \\
+            -n {wildcards.sample} \\
+            -g {params.gsize} \\
+            -p {params.pval} \\
+            --shift $shiftsize  \\
+            --extsize {params.smooth_win} \\
+            --nomodel -B --SPMR --keep-dup all --call-summits
+        sort -k 8gr,8gr {params.outdir}/{wildcards.sample}_peaks.narrowPeak |\\
+            awk 'BEGIN{{OFS="\t"}}{{$4="Peak_"NR ; print $0}}' |\\
+            head -n {params.max_peaks} | gzip -nc > {output}
+        """
+
+################################################################################
+## Preprocess Peaks
+################################################################################
+
+rule extend_blacklist_regions:
+    input:
+        bed_bl=config['blacklist_regions']['file'],
+        chrom_sizes=config['chrom_sizes']['file']
+    output:
+        "resources/blacklist/blacklist_extend.flank_{nts}.bed"
+    threads: 4
+    conda: "chrombpnet_0_1_7"
+    shell:
+      """
+      bedtools slop -i {input.bed_bl} -g {input.chrom_sizes} -b {wildcards.nts} > {output}
+      """
+
+rule filter_blacklist_peaks:
+    input:
+        bed_bl="resources/blacklist/blacklist_extend.flank_%s.bed" % config['blacklist_expand_width'],
+        bed_pk=lambda wcs: config['peak_bed'][wcs.sample]
+    output:
+        "resources/peaks/{sample}/{sample}.no_blacklist.bed"
+    threads: 1
+    conda: "chrombpnet_0_1_7"
+    shell:
+      """
+      bedtools intersect -v -a {input.bed_pk} -b {input.bed_bl} |\\
+        awk 'BEGIN{{OFS="\t"}}{{print $1,$2,$3,$4,$5,$6,".","-1","-1",int(($3-$2)/2)}}' > {output}
+      """
+
+################################################################################
+## Generate Background Peaks
+################################################################################
+
+rule prep_fold_nonpeaks:
+    input:
+        fa=config['genome']['file'],
+        chrom_sizes=config['chrom_sizes']['file'],
+        bed_bl=config['blacklist_regions']['file'],
+        bed_pk="resources/peaks/{sample}/{sample}.no_blacklist.bed",
+        fold="resources/folds/{fold_id}.json"
+    output:
+        "resources/peaks/{sample}/{fold_id}/nonpeaks_negatives.bed"
+    threads: 4
+    conda: "chrombpnet_0_1_7"
+    shell:
+      """
+      chrombpnet prep nonpeaks \\
+        -g {input.fa} -c {input.chrom_sizes} \\
+        -p {input.bed_pk} -fl {input.fold} \\
+        -br {input.bed_bl} \\
+        -o "resources/peaks/{wildcards.sample}/{wildcards.fold_id}/nonpeaks"
+      """
+
+################################################################################
+## Train Bias Model
+################################################################################
+
+rule train_bias_model_fold:
+    input:
+        bam=get_sample_bam,
+        fa=config['genome']['file'],
+        chrom_sizes=config['chrom_sizes']['file'],
+        bed_bl=config['blacklist_regions']['file'],
+        bed_pk="resources/peaks/{sample}/{sample}.no_blacklist.bed",
+        bed_neg="resources/peaks/{sample}/{fold_id}/nonpeaks_negatives.bed",
+        fold="resources/folds/{fold_id}.json"
+    output:
+        "resources/bias/{sample}/{fold_id}/models/{sample}_{fold_id}._bias.h5"
+    params:
+        outdir="resources/bias/{sample}/{fold_id}/"
+    threads: 40
+    resources:
+        slurm_extra="'--gres=gpu:h100:1'"
+    conda: "chrombpnet_0_1_7"
+    shell:
+        """
+        rm -rf {params.outdir}
+        export OMP_NUM_THREADS={threads}
+        export OPENBLAS_NUM_THREADS={threads}
+        chrombpnet bias pipeline \\
+            -ibam {input.bam} \\
+            -d "ATAC" \\
+            -g {input.fa} -c {input.chrom_sizes} \\
+            -p {input.bed_pk} \\
+            -n {input.bed_neg} \\
+            -fl {input.fold} \\
+            -b 0.5 \\
+            -o {params.outdir} \\
+            -fp {wildcards.sample}_{wildcards.fold_id}.
+        """
+
+
+################################################################################
+## Train Bias-Factorized Model
+################################################################################
+
+rule train_nobias_model_fold:
+    input:
+        bam=get_sample_bam,
+        fa=config['genome']['file'],
+        chrom_sizes=config['chrom_sizes']['file'],
+        bed_bl=config['blacklist_regions']['file'],
+        bed_pk="resources/peaks/{sample}/{sample}.no_blacklist.bed",
+        bed_neg="resources/peaks/{sample}/{fold_id}/nonpeaks_negatives.bed",
+        fold="resources/folds/{fold_id}.json",
+        h5_bias="resources/bias/{sample}/{fold_id}/models/{sample}_{fold_id}._bias.h5"
+    output:
+        "results/chrombpnet_nobias/{sample}/{fold_id}/evaluation/{sample}_{fold_id}._overall_report.pdf"
+    params:
+        outdir="results/chrombpnet_nobias/{sample}/{fold_id}/"
+    threads: 40
+    resources:
+        slurm_extra="'--gres=gpu:h100:1'"
+    conda: "chrombpnet_0_1_7"
+    shell:
+        """
+        rm -rf {params.outdir}
+        export OMP_NUM_THREADS={threads}
+        export OPENBLAS_NUM_THREADS={threads}
+        chrombpnet pipeline \\
+            -ibam {input.bam} \\
+            -d "ATAC" \\
+            -g {input.fa} -c {input.chrom_sizes} \\
+            -p {input.bed_pk} \\
+            -n {input.bed_neg} \\
+            -fl {input.fold} \\
+            -b {input.h5_bias} \\
+            -o {params.outdir} \\
+            -fp {wildcards.sample}_{wildcards.fold_id}.
+        """
+
+rule train_nobias_model_fold_pretrained:
+    input:
+        bam=get_sample_bam,
+        fa=config['genome']['file'],
+        chrom_sizes=config['chrom_sizes']['file'],
+        bed_bl=config['blacklist_regions']['file'],
+        bed_pk="resources/peaks/{sample}/{sample}.no_blacklist.bed",
+        bed_neg="resources/peaks/{sample}/{fold_id}/nonpeaks_negatives.bed",
+        fold="resources/folds/{fold_id}.json",
+        h5_bias=config['pretrained_bias']['h5']
+    output:
+        "results/chrombpnet_nobias/pretrained_bias/{sample}/{fold_id}/evaluation/{sample}_{fold_id}._overall_report.pdf"
+    params:
+        outdir="results/chrombpnet_nobias/pretrained_bias/{sample}/{fold_id}/"
+    threads: 40
+    resources:
+        slurm_extra="'--gres=gpu:h100:1'"
+    conda: "chrombpnet_0_1_7"
+    shell:
+        """
+        rm -rf {params.outdir}
+        export OMP_NUM_THREADS={threads}
+        export OPENBLAS_NUM_THREADS={threads}
+        chrombpnet pipeline \\
+            -ibam {input.bam} \\
+            -d "ATAC" \\
+            -g {input.fa} -c {input.chrom_sizes} \\
+            -p {input.bed_pk} \\
+            -n {input.bed_neg} \\
+            -fl {input.fold} \\
+            -b {input.h5_bias} \\
+            -o {params.outdir} \\
+            -fp {wildcards.sample}_{wildcards.fold_id}.
+        """
+
+################################################################################
+## Tests and Utilities
+################################################################################
+
+rule test_gpu:
+    output: "results/tests/gpu_{id}.txt"
+    resources:
+        slurm_extra="'--gres=gpu:h100:1'"
+    conda: "chrombpnet_0_1_7"
+    shell:
+        """
+        nvidia-smi -L > {output}
+        which nvcc >> {output}
+        env >> {output}
+        """
+
+rule test_tf:
+    output: "results/tests/tf_{id}.txt"
+    resources:
+        slurm_extra="'--gres=gpu:h100:1'"
+    conda: "chrombpnet_0_1_7"
+    shell:
+        """
+        python -c "import tensorflow as tf; print(tf.config.list_physical_devices('GPU'))" &> {output}
+        """
