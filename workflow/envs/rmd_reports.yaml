@@ -1,0 +1,13 @@
+name: rmd_reports
+channels:
+  - conda-forge
+  - bioconda
+  - nodefaults
+dependencies:
+  - r-base=4.4
+  - bioconductor-biocparallel
+  - bioconductor-genomicranges
+  - bioconductor-plyranges
+  - r-magrittr
+  - r-pheatmap
+  - r-tidyverse

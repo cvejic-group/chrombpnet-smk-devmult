@@ -24,20 +24,75 @@ message(f"[INFO]   Found {len(peak_beds.keys())} peak files.")
 matched_sample_ids = samples.keys() & peak_beds.keys()
 message(f"[INFO]   Found {len(matched_sample_ids)} samples with matched peaks.")
 
+# match sample targets
+sce2g_bedpes = config['peak_gene_link']['scE2G']
+samples_sce2g = samples.keys() & sce2g_bedpes.keys()
+message(f"[INFO]   Found {len(samples_sce2g)} samples with matched scE2G links.")
+
 wildcard_constraints:
     sample="[^/.]+",
-    bam_id="[^/]+"
+    bam_id="[^/]+",
+    fold_id="fold_[0-9]+"
 
 ################################################################################
 ## MAIN
 ################################################################################
 
+LIST_PREPROB={"PreProB_PCW5", "PreProB_PCW6", "PreProB_PCW7", "PreProB_PCW8"}
 rule all:
     input:
         ## cell types (pretrained bias)
-        expand("results/chrombpnet_nobias/pretrained_bias/{sample}/{fold_id}/evaluation/{sample}_{fold_id}._overall_report.pdf",
-               fold_id='fold_0', #config['folds'].keys(), 
-               sample=[s for s in matched_sample_ids if "PCW" not in s]),
+        #expand("results/chrombpnet_nobias/pretrained_bias/{sample}/{fold_id}/evaluation/{sample}_{fold_id}._overall_report.pdf",
+        #       fold_id=list(config['folds'].keys())[:3],
+        #       sample=[s for s in matched_sample_ids if "PCW" not in s]),
+        # expand("results/chrombpnet_nobias/pretrained_bias/{sample}/{fold_id}/modisco/{score_type}_scores/motifs.html",
+        #        fold_id=list(config['folds'].keys()),
+        #        sample=[s for s in matched_sample_ids if "PCW" not in s],
+        #        score_type="counts"),
+        # expand("results/chrombpnet_nobias/pretrained_bias/{sample}/{fold_id}/modisco/{sample}_{fold_id}.{score_type}_scores.bed.gz",
+        #        fold_id=list(config['folds'].keys()),
+        #        sample=[s for s in matched_sample_ids if "PCW" not in s],
+        #        score_type="counts"),
+        # expand("results/chrombpnet_nobias/pretrained_bias/{sample}/mean/modisco/{score_type}_scores/motifs.html",
+        #        sample=[s for s in matched_sample_ids if "PCW" not in s],
+        #        score_type="counts"),
+        expand("results/chrombpnet_nobias/pretrained_bias/{sample}/mean/modisco/{score_type}_scores/df_motifs.csv.gz",
+               sample=[s for s in matched_sample_ids if "PCW" not in s],
+               score_type="counts"),
+        expand("results/chrombpnet_nobias/pretrained_bias/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.sorted.{track_type}.gz",
+               sample=[s for s in matched_sample_ids if "PCW" not in s],
+               score_type="counts", track_type=["bed", "bedpe"]),
+        expand("results/chrombpnet_nobias/pretrained_bias/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.top_tf.{track_type}",
+               sample=[s for s in matched_sample_ids if "PCW" not in s],
+               score_type="counts", track_type=["bed.bgz", "bedpe.gz"]),
+        expand("results/chrombpnet_nobias/pretrained_bias/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.tf_set_2.{track_type}",
+               sample=[s for s in matched_sample_ids if "PCW" not in s],
+               score_type="counts", track_type=["bed.bgz", "bedpe.gz"]),
+        expand("results/chrombpnet_nobias/pretrained_bias/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.top_tf.{track_type}",
+               sample=[s for s in matched_sample_ids if "HSC_PCW" in s],
+               score_type="counts", track_type=["bed.bgz", "bedpe.gz"]),
+        expand("results/chrombpnet_nobias/pretrained_bias/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.tf_set_2.{track_type}",
+               sample=[s for s in matched_sample_ids if "HSC_PCW" in s],
+               score_type="counts", track_type=["bed.bgz", "bedpe.gz"]),
+        expand("results/chrombpnet_nobias/pretrained_bias/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.tf_set_2.{track_type}",
+               sample=[s for s in matched_sample_ids if any(x in s for x in LIST_PREPROB)],
+               score_type="counts", track_type=["bed.bgz", "bedpe.gz"]),
+        expand("results/reports/compare_seqlets/mean/report_seqlet_overlaps.{sample1}.{sample2}.counts_scores.html",
+               zip,
+               sample1=[s[0] for s in config['sample_contrast']],
+               sample2=[s[1] for s in config['sample_contrast']]),
+        expand("results/reports/summarize_seqlets/mean/report_seqlet_summary.{sample}.{score_type}_scores.html",
+               sample=[s for s in matched_sample_ids if "PCW" not in s],
+               score_type="counts"),
+        expand("results/seqlet-target/scE2G/{sample}_seqlet_scE2G.{score_type}_scores.csv.gz",
+               sample=[s for s in samples_sce2g],
+               score_type="counts"),
+        expand("results/chrombpnet_nobias/hsc_unified/{sample}/mean/modisco/{score_type}_scores/df_motifs.csv.gz",
+               sample=[s for s in matched_sample_ids if "HSC_PCW" in s],
+               score_type="counts"),
+        # expand("results/chrombpnet_nobias/pretrained_bias/{sample}/mean/finemo/{score_type}_scores/{sample}_mean.{score_type}_scores.report.pdf",
+        #        sample=[s for s in matched_sample_ids if "PCW" not in s],
+        #        score_type="counts"),
         ## cell types (custom bias)
         #expand("results/chrombpnet_nobias/{sample}/{fold_id}/evaluation/{sample}_{fold_id}._overall_report.pdf",
         #       fold_id='fold_0', #config['folds'].keys(), 
@@ -45,6 +100,10 @@ rule all:
         ## cell types x PCW
         #expand("results/chrombpnet_nobias/{sample}/{fold_id}/evaluation/{sample}_{fold_id}._overall_report.pdf",
         #       fold_id=config['folds'].keys(), sample=[s for s in matched_sample_ids if "PCW" in s])
+        ## cell types (pretrained bias)
+        #expand("results/chrombpnet_nobias/pretrained_bias/{sample}/{fold_id}/evaluation/{sample}_{fold_id}._overall_report.pdf",
+        #       fold_id=list(config['folds'].keys())[:3], 
+        #       sample=[s for s in matched_sample_ids if "PCW" in s]),
 
 ################################################################################
 ## DOWNLOADING
@@ -72,6 +131,17 @@ rule download_chrom_sizes:
     shell:
       """
       wget -O {output.tsv} {params.url}
+      """
+
+rule download_meme:
+    output:
+        meme=config['meme']['file']
+    params:
+        url=config['meme']['url']
+    threads: 1
+    shell:
+      """
+      wget -O {output.meme} {params.url}
       """
 
 rule download_blacklist:
@@ -211,10 +281,10 @@ rule filter_blacklist_peaks:
     threads: 1
     conda: "chrombpnet_0_1_7"
     shell:
-      """
-      bedtools intersect -v -a {input.bed_pk} -b {input.bed_bl} |\\
-        awk 'BEGIN{{OFS="\t"}}{{print $1,$2,$3,$4,$5,$6,".","-1","-1",int(($3-$2)/2)}}' > {output}
-      """
+        """
+        bedtools intersect -v -a {input.bed_pk} -b {input.bed_bl} |\\
+            awk 'BEGIN{{OFS="\t"}}{{print $1,$2,$3,$4,$5,$6,".","-1","-1",int(($3-$2)/2)}}' > {output}
+        """
 
 ################################################################################
 ## Generate Background Peaks
@@ -329,7 +399,8 @@ rule train_nobias_model_fold_pretrained:
         fold="resources/folds/{fold_id}.json",
         h5_bias=config['pretrained_bias']['h5']
     output:
-        "results/chrombpnet_nobias/pretrained_bias/{sample}/{fold_id}/evaluation/{sample}_{fold_id}._overall_report.pdf"
+        h5_nobias="results/chrombpnet_nobias/pretrained_bias/{sample}/{fold_id}/models/{sample}_{fold_id}._chrombpnet_nobias.h5",
+        report="results/chrombpnet_nobias/pretrained_bias/{sample}/{fold_id}/evaluation/{sample}_{fold_id}._overall_report.pdf"
     params:
         outdir="results/chrombpnet_nobias/pretrained_bias/{sample}/{fold_id}/"
     threads: 40
@@ -352,6 +423,628 @@ rule train_nobias_model_fold_pretrained:
             -o {params.outdir} \\
             -fp {wildcards.sample}_{wildcards.fold_id}.
         """
+
+
+################################################################################
+## Contributions
+################################################################################
+
+rule contribs_bw_fold_pretrained:
+    input:
+        fa=config['genome']['file'],
+        chrom_sizes=config['chrom_sizes']['file'],
+        bed_pk="resources/peaks/{sample}/{sample}.no_blacklist.bed",
+        h5_nobias="results/chrombpnet_nobias/pretrained_bias/{sample}/{fold_id}/models/{sample}_{fold_id}._chrombpnet_nobias.h5"
+    output:
+        bw="results/chrombpnet_nobias/pretrained_bias/{sample}/{fold_id}/shap/{sample}_{fold_id}.{score_type}_scores.bw",
+        h5="results/chrombpnet_nobias/pretrained_bias/{sample}/{fold_id}/shap/{sample}_{fold_id}.{score_type}_scores.h5"
+    params:
+        outdir="results/chrombpnet_nobias/pretrained_bias/{sample}/{fold_id}/shap"
+    wildcard_constraints:
+        score_type="(counts|profile)"
+    threads: 4
+    resources:
+        slurm_extra="'--gres=gpu:h100:1'"
+    conda: "chrombpnet_0_1_7"
+    shell:
+        """
+        rm -rf {params.outdir}
+        mkdir -p {params.outdir}
+        export OMP_NUM_THREADS={threads}
+        export OPENBLAS_NUM_THREADS={threads}
+        chrombpnet contribs_bw \\
+            -m {input.h5_nobias} \\
+            -g {input.fa} -c {input.chrom_sizes} \\
+            -r {input.bed_pk} \\
+            -op {params.outdir}/{wildcards.sample}_{wildcards.fold_id} \\
+            -pc {wildcards.score_type}
+        """
+
+rule contribs_bw_fold_hsc_unified:
+    input:
+        fa=config['genome']['file'],
+        chrom_sizes=config['chrom_sizes']['file'],
+        bed_pk="resources/peaks/unified/HSC.unified.bed",
+        h5_nobias="results/chrombpnet_nobias/pretrained_bias/{sample}/{fold_id}/models/{sample}_{fold_id}._chrombpnet_nobias.h5"
+    output:
+        bw="results/chrombpnet_nobias/hsc_unified/{sample}/{fold_id}/shap/{sample}_{fold_id}.{score_type}_scores.bw",
+        h5="results/chrombpnet_nobias/hsc_unified/{sample}/{fold_id}/shap/{sample}_{fold_id}.{score_type}_scores.h5"
+    params:
+        outdir="results/chrombpnet_nobias/hsc_unified/{sample}/{fold_id}/shap"
+    wildcard_constraints:
+        score_type="(counts|profile)"
+    threads: 4
+    resources:
+        slurm_extra="'--gres=gpu:h100:1'"
+    conda: "chrombpnet_0_1_7"
+    shell:
+        """
+        rm -rf {params.outdir}
+        mkdir -p {params.outdir}
+        export OMP_NUM_THREADS={threads}
+        export OPENBLAS_NUM_THREADS={threads}
+        chrombpnet contribs_bw \\
+            -m {input.h5_nobias} \\
+            -g {input.fa} -c {input.chrom_sizes} \\
+            -r {input.bed_pk} \\
+            -op {params.outdir}/{wildcards.sample}_{wildcards.fold_id} \\
+            -pc {wildcards.score_type}
+        """
+
+rule contribs_to_npz_fold_pretrained:
+    input:
+        h5="results/chrombpnet_nobias/pretrained_bias/{sample}/{fold_id}/shap/{sample}_{fold_id}.{score_type}_scores.h5"
+    output:
+        shap="results/chrombpnet_nobias/pretrained_bias/{sample}/{fold_id}/shap/{sample}_{fold_id}.{score_type}_scores.npz",
+        onehot="results/chrombpnet_nobias/pretrained_bias/{sample}/{fold_id}/shap/{sample}_{fold_id}.{score_type}_onehot.npz"
+    wildcard_constraints:
+        score_type="(counts|profile)"
+    threads: 1
+    resources:
+        mem_mb=16000
+    conda: "chrombpnet_0_1_7"
+    script: "scripts/contribs_h5_to_npz.py"
+
+rule contribs_to_npz_mean_pretrained:
+    input:
+        h5=expand("results/chrombpnet_nobias/pretrained_bias/{sample}/{fold_id}/shap/{sample}_{fold_id}.{score_type}_scores.h5",
+                  fold_id=list(config['folds'].keys()), allow_missing=True)
+    output:
+        shap="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/shap/{sample}_mean.{score_type}_scores.npz",
+        onehot="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/shap/{sample}_mean.{score_type}_onehot.npz",
+        h5="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/shap/{sample}_mean.{score_type}_scores.h5"
+    wildcard_constraints:
+        score_type="(counts|profile)"
+    threads: 16
+    resources:
+        mem_mb=64000
+    conda: "chrombpnet_0_1_7"
+    script: "scripts/mean_contribs_h5_to_npz.py"
+
+rule contribs_to_npz_mean_hsc_unified:
+    input:
+        h5=expand("results/chrombpnet_nobias/hsc_unified/{sample}/{fold_id}/shap/{sample}_{fold_id}.{score_type}_scores.h5",
+                  fold_id=list(config['folds'].keys()), allow_missing=True)
+    output:
+        shap="results/chrombpnet_nobias/hsc_unified/{sample}/mean/shap/{sample}_mean.{score_type}_scores.npz",
+        onehot="results/chrombpnet_nobias/hsc_unified/{sample}/mean/shap/{sample}_mean.{score_type}_onehot.npz",
+        h5="results/chrombpnet_nobias/hsc_unified/{sample}/mean/shap/{sample}_mean.{score_type}_scores.h5"
+    wildcard_constraints:
+        score_type="(counts|profile)"
+    threads: 16
+    resources:
+        mem_mb=64000
+    conda: "chrombpnet_0_1_7"
+    script: "scripts/mean_contribs_h5_to_npz.py"
+
+rule modisco_motifs_fold_pretrained:
+    input:
+        shap="results/chrombpnet_nobias/pretrained_bias/{sample}/{fold_id}/shap/{sample}_{fold_id}.{score_type}_scores.npz",
+        onehot="results/chrombpnet_nobias/pretrained_bias/{sample}/{fold_id}/shap/{sample}_{fold_id}.{score_type}_onehot.npz"
+    output:
+        h5="results/chrombpnet_nobias/pretrained_bias/{sample}/{fold_id}/modisco/{sample}_{fold_id}.{score_type}_scores.modisco.h5"
+    params:
+        num_seqlets=config['modisco']['num_seqlets'],
+        window=config['modisco']['window']
+    wildcard_constraints:
+        score_type="(counts|profile)"
+    threads: 32
+    resources:
+        mem_mb=64000
+    conda: "modiscolite_2_2_1"
+    shell:
+        """
+        modisco motifs \\
+            -s {input.onehot} \\
+            -a {input.shap} \\
+            -n {params.num_seqlets} \\
+            -w {params.window} \\
+            -o {output.h5} \\
+            -v
+        """
+
+rule modisco_motifs_mean_pretrained:
+    input:
+        shap="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/shap/{sample}_mean.{score_type}_scores.npz",
+        onehot="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/shap/{sample}_mean.{score_type}_onehot.npz"
+    output:
+        h5="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.modisco.h5"
+    params:
+        num_seqlets=config['modisco']['num_seqlets'],
+        window=config['modisco']['window']
+    wildcard_constraints:
+        score_type="(counts|profile)"
+    threads: 32
+    resources:
+        mem_mb=64000
+    conda: "modiscolite_2_2_1"
+    shell:
+        """
+        modisco motifs \\
+            -s {input.onehot} \\
+            -a {input.shap} \\
+            -n {params.num_seqlets} \\
+            -w {params.window} \\
+            -o {output.h5} \\
+            -v
+        """
+
+rule modisco_motifs_mean_hsc_unified:
+    input:
+        shap="results/chrombpnet_nobias/hsc_unified/{sample}/mean/shap/{sample}_mean.{score_type}_scores.npz",
+        onehot="results/chrombpnet_nobias/hsc_unified/{sample}/mean/shap/{sample}_mean.{score_type}_onehot.npz"
+    output:
+        h5="results/chrombpnet_nobias/hsc_unified/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.modisco.h5"
+    params:
+        num_seqlets=config['modisco']['num_seqlets'],
+        window=config['modisco']['window']
+    wildcard_constraints:
+        score_type="(counts|profile)"
+    threads: 32
+    resources:
+        mem_mb=64000
+    conda: "modiscolite_2_2_1"
+    shell:
+        """
+        modisco motifs \\
+            -s {input.onehot} \\
+            -a {input.shap} \\
+            -n {params.num_seqlets} \\
+            -w {params.window} \\
+            -o {output.h5} \\
+            -v
+        """
+
+rule modisco_report_fold_pretrained:
+    input:
+        meme=config['meme']['file'],
+        h5="results/chrombpnet_nobias/pretrained_bias/{sample}/{fold_id}/modisco/{sample}_{fold_id}.{score_type}_scores.modisco.h5"
+    output:
+        html="results/chrombpnet_nobias/pretrained_bias/{sample}/{fold_id}/modisco/{score_type}_scores/motifs.html"
+    params:
+        num_matches=config['modisco']['num_matches'],
+        outdir="results/chrombpnet_nobias/pretrained_bias/{sample}/{fold_id}/modisco/{score_type}_scores"
+    wildcard_constraints:
+        score_type="(counts|profile)"
+    threads: 1
+    resources:
+        mem_mb=16000
+    conda: "modiscolite_2_2_1"
+    shell:
+        """
+        modisco report \\
+            -i {input.h5} \\
+            -o {params.outdir} \\
+            -n {params.num_matches} \\
+            -m {input.meme}
+        """
+
+rule modisco_report_mean_pretrained:
+    input:
+        meme=config['meme']['file'],
+        h5="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.modisco.h5"
+    output:
+        html="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/modisco/{score_type}_scores/motifs.html"
+    params:
+        num_matches=config['modisco']['num_matches'],
+        outdir="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/modisco/{score_type}_scores"
+    wildcard_constraints:
+        score_type="(counts|profile)"
+    threads: 1
+    resources:
+        mem_mb=16000
+    conda: "modiscolite_2_2_1"
+    shell:
+        """
+        modisco report \\
+            -i {input.h5} \\
+            -o {params.outdir} \\
+            -n {params.num_matches} \\
+            -m {input.meme}
+        """
+
+rule modisco_report_mean_hsc_unified:
+    input:
+        meme=config['meme']['file'],
+        h5="results/chrombpnet_nobias/hsc_unified/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.modisco.h5"
+    output:
+        html="results/chrombpnet_nobias/hsc_unified/{sample}/mean/modisco/{score_type}_scores/motifs.html"
+    params:
+        num_matches=config['modisco']['num_matches'],
+        outdir="results/chrombpnet_nobias/hsc_unified/{sample}/mean/modisco/{score_type}_scores"
+    wildcard_constraints:
+        score_type="(counts|profile)"
+    threads: 1
+    resources:
+        mem_mb=16000
+    conda: "modiscolite_2_2_1"
+    shell:
+        """
+        modisco report \\
+            -i {input.h5} \\
+            -o {params.outdir} \\
+            -n {params.num_matches} \\
+            -m {input.meme}
+        """
+
+rule modisco_motifs_mean_csv:
+    input:
+        html="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/modisco/{score_type}_scores/motifs.html"
+    output:
+        csv="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/modisco/{score_type}_scores/df_motifs.csv.gz"
+    params:
+        cluster="{sample}",
+        fold="mean"
+    wildcard_constraints:
+        score_type="(counts|profile)"
+    threads: 1
+    resources:
+        mem_mb=4000
+    conda: "modiscolite_2_2_1"
+    script: "scripts/modisco_html_to_csv.py"
+
+rule modisco_motifs_mean_csv_hsc_unified:
+    input:
+        html="results/chrombpnet_nobias/hsc_unified/{sample}/mean/modisco/{score_type}_scores/motifs.html"
+    output:
+        csv="results/chrombpnet_nobias/hsc_unified/{sample}/mean/modisco/{score_type}_scores/df_motifs.csv.gz"
+    params:
+        cluster="{sample}",
+        fold="mean"
+    wildcard_constraints:
+        score_type="(counts|profile)"
+    threads: 1
+    resources:
+        mem_mb=4000
+    conda: "modiscolite_2_2_1"
+    script: "scripts/modisco_html_to_csv.py"
+
+
+################################################################################
+## FiNeMo
+################################################################################
+
+rule finemo_extract_regions_mean:
+    input:
+        h5="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/shap/{sample}_mean.{score_type}_scores.h5"
+    output:
+        npz="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/finemo/{sample}_mean.{score_type}_scores.npz"
+    wildcard_constraints:
+        score_type="(counts|profile)"
+    threads: 32
+    resources:
+        slurm_extra="'--gres=gpu:h100:1'"
+    conda: "finemo_0_25"
+    shell:
+        """
+        finemo extract-regions-chrombpnet-h5 \\
+            -c {input.h5} \\
+            -o {output.npz}
+        """
+
+rule finemo_call_hits_mean:
+    input:
+        npz="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/finemo/{sample}_mean.{score_type}_scores.npz",
+        h5="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.modisco.h5",
+        bed_pk="resources/peaks/{sample}/{sample}.no_blacklist.bed"
+    output:
+        bed_hits="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/finemo/{score_type}_scores/hits.bed",
+        tsv_hits="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/finemo/{score_type}_scores/hits.tsv",
+        tsv_hits_uniq="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/finemo/{score_type}_scores/hits_unique.tsv",
+        tsv_qc="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/finemo/{score_type}_scores/peaks_qc.tsv",
+        json="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/finemo/{score_type}_scores/parameters.json"
+    params:
+        outdir="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/finemo/{score_type}_scores",
+        threshold=config['finemo']['cwm_trim_threshold'],
+        alpha=config['finemo']['alpha'],
+        batch=config['finemo']['batch_size'],
+        args=config['finemo']['extra_args']
+    wildcard_constraints:
+        score_type="(counts|profile)"
+    threads: 32
+    resources:
+        slurm_extra="'--gres=gpu:h100:1'"
+    conda: "finemo_0_25"
+    shell:
+        """
+        finemo call-hits \\
+            -r {input.npz} \\
+            -m {input.h5} \\
+            -p {input.bed_pk} \\
+            -o {params.outdir} \\
+            -t {params.threshold} \\
+            -a {params.alpha} \\
+            -b {params.batch} \\
+            {params.args}
+        """
+
+rule finemo_report_mean:
+    input:
+        npz="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/finemo/{sample}_mean.{score_type}_scores.npz",
+        tsv_hits="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/finemo/{score_type}_scores/hits.tsv",
+        h5="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.modisco.h5",
+        bed_pk="resources/peaks/{sample}/{sample}.no_blacklist.bed"
+    output:
+        html="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/finemo/{score_type}_scores/report.html"
+    params:
+        outdir="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/finemo/{score_type}_scores",
+        threshold=config['finemo']['cwm_trim_threshold'],
+        width=config['modisco']['window']
+    wildcard_constraints:
+        score_type="(counts|profile)"
+    threads: 16
+    conda: "finemo_0_25"
+    shell:
+        """
+        finemo report \\
+            -r {input.npz} \\
+            -H {input.tsv_hits} \\
+            -m {input.h5} \\
+            -p {input.bed_pk} \\
+            -o {params.outdir} \\
+            -W {params.width} \\
+            -t {params.threshold}
+        """
+
+rule finemo_report_to_pdf:
+    input:
+        html="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/finemo/{score_type}_scores/report.html"
+    output:
+        pdf="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/finemo/{score_type}_scores/{sample}_mean.{score_type}_scores.report.pdf"
+    params:
+        width=640,
+        height=1280
+    wildcard_constraints:
+        score_type="(counts|profile)"
+    threads: 1
+    conda: "chrombpnet_0_1_7"
+    script: "scripts/finemo_html_to_pdf.py"
+
+################################################################################
+## Output Tracks
+################################################################################
+
+rule modisco_bed_fold_pretrained:
+    input:
+        bed_pk="resources/peaks/{sample}/{sample}.no_blacklist.bed",
+        h5="results/chrombpnet_nobias/pretrained_bias/{sample}/{fold_id}/modisco/{sample}_{fold_id}.{score_type}_scores.modisco.h5"
+    output:
+        bed="results/chrombpnet_nobias/pretrained_bias/{sample}/{fold_id}/modisco/{sample}_{fold_id}.{score_type}_scores.bed.gz",
+        tbi="results/chrombpnet_nobias/pretrained_bias/{sample}/{fold_id}/modisco/{sample}_{fold_id}.{score_type}_scores.bed.gz.tbi"
+    params:
+        chrom="*"
+    wildcard_constraints:
+        score_type="(counts|profile)"
+    threads: 1
+    resources:
+        mem_mb=24000
+    conda: "modiscolite_2_2_1"
+    shell:
+        """
+        modisco seqlet-bed \\
+            -i {input.h5} \\
+            -p {input.bed_pk} \\
+            -c '{params.chrom}' |\\
+            grep -vE '^(track name|$)' |\\
+            sort -k1,1 -k2,2n -k3,3n |\\
+            bgzip -c > {output.bed}
+        tabix {output.bed}
+        """
+
+rule modisco_bed_mean_pretrained_raw:
+    input:
+        bed_pk="resources/peaks/{sample}/{sample}.no_blacklist.bed",
+        h5="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.modisco.h5"
+    output:
+        bed="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.raw.bed.gz"
+    params:
+        chrom="*"
+    wildcard_constraints:
+        score_type="(counts|profile)"
+    threads: 1
+    resources:
+        mem_mb=24000
+    conda: "modiscolite_2_2_1"
+    shell:
+        """
+        modisco seqlet-bed \\
+            -i {input.h5} \\
+            -p {input.bed_pk} \\
+            -c '{params.chrom}' |\\
+            bgzip -c > {output.bed}
+        """
+
+rule modisco_bedpe_mean_pretrained_raw:
+    input:
+        bed_pk="resources/peaks/{sample}/{sample}.no_blacklist.bed",
+        h5="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.modisco.h5"
+    output:
+        bedpe="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.raw.bedpe.gz"
+    params:
+        width=config['modisco']['window']
+    wildcard_constraints:
+        score_type="(counts|profile)"
+    threads: 1
+    conda: "modiscolite_2_2_1"
+    script: "scripts/modisco_seqlets_to_bedpe.py"
+
+rule modisco_bed_mean_pretrained_sorted:
+    input:
+        bed="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.raw.bed.gz"
+    output:
+        bed="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.sorted.bed.gz",
+        tbi="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.sorted.bed.gz.tbi"
+    wildcard_constraints:
+        score_type="(counts|profile)"
+    threads: 4
+    resources:
+        mem_mb=4000
+    conda: "modiscolite_2_2_1"
+    shell:
+        """
+        bgzip -@ {threads} -cd {input.bed} |\\
+            grep -vE '^(track name|$)' |\\
+            sort -k1,1 -k2,2n -k3,3n |\\
+            bgzip -@ {threads} -c > {output.bed}
+        tabix {output.bed}
+        """
+
+rule modisco_bedpe_mean_pretrained_sorted:
+    input:
+        bedpe="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.raw.bedpe.gz"
+    output:
+        bedpe="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.sorted.bedpe.gz"
+    wildcard_constraints:
+        score_type="(counts|profile)"
+    threads: 4
+    resources:
+        mem_mb=4000
+    conda: "modiscolite_2_2_1"
+    shell:
+        """
+        bgzip -@ {threads} -cd {input.bedpe} |\\
+            grep -vE '^(track name|$)' |\\
+            sort -k1,1 -k2,2n -k3,3n -k5,5n -k6,6n |\\
+            bgzip -@ {threads} -c > {output.bedpe}
+        """
+
+rule modisco_motifs_mean_annot_bed_top:
+    input:
+        csv="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/modisco/{score_type}_scores/df_motifs.csv.gz",
+        bed="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.sorted.bed.gz"
+    output:
+        bed="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.top_tf.bed.bgz",
+        tbi="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.top_tf.bed.bgz.tbi"
+    params:
+        json=config['meme']['json']
+    wildcard_constraints:
+        score_type="(counts|profile)"
+    threads: 1
+    resources:
+        mem_mb=4000
+    conda: "envs/plyranges.yaml"
+    script: "scripts/bed_annot_top_tf.R"
+
+rule modisco_motifs_mean_annot_bedpe_top:
+    input:
+        csv="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/modisco/{score_type}_scores/df_motifs.csv.gz",
+        bedpe="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.sorted.bedpe.gz"
+    output:
+        bedpe="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.top_tf.bedpe.gz"
+    params:
+        json=config['meme']['json']
+    wildcard_constraints:
+        score_type="(counts|profile)"
+    threads: 1
+    resources:
+        mem_mb=4000
+    conda: "envs/plyranges.yaml"
+    script: "scripts/bedpe_annot_top_tf.R"
+
+rule bedpe_top_targets_sce2g:
+    input:
+        bedpe_seqlet="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.top_tf.bedpe.gz",
+        bedpe_sce2g=lambda wcs: config['peak_gene_link']['scE2G'][wcs.sample]
+    output:
+        bedpe="results/seqlet-target/scE2G/{sample}_seqlet_scE2G.{score_type}_scores.bedpe.gz",
+        csv="results/seqlet-target/scE2G/{sample}_seqlet_scE2G.{score_type}_scores.csv.gz"
+    wildcard_constraints:
+        score_type="(counts|profile)"
+    threads: 1
+    resources:
+        mem_mb=4000
+    conda: "envs/plyranges.yaml"
+    script: "scripts/bedpe_targets_sce2g.R"
+
+rule modisco_motifs_mean_annot_bed_tf_set_2:
+    input:
+        csv="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/modisco/{score_type}_scores/df_motifs.csv.gz",
+        bed="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.sorted.bed.gz"
+    output:
+        bed="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.tf_set_2.bed.bgz",
+        tbi="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.tf_set_2.bed.bgz.tbi"
+    params:
+        json=config['meme']['json']
+    wildcard_constraints:
+        score_type="(counts|profile)"
+    threads: 1
+    resources:
+        mem_mb=4000
+    conda: "envs/plyranges.yaml"
+    script: "scripts/bed_annot_tf_set_2.R"
+
+rule modisco_motifs_mean_annot_bedpe_tf_set_2:
+    input:
+        csv="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/modisco/{score_type}_scores/df_motifs.csv.gz",
+        bedpe="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.sorted.bedpe.gz"
+    output:
+        bedpe="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.tf_set_2.bedpe.gz"
+    params:
+        json=config['meme']['json']
+    wildcard_constraints:
+        score_type="(counts|profile)"
+    threads: 1
+    resources:
+        mem_mb=4000
+    conda: "envs/plyranges.yaml"
+    script: "scripts/bedpe_annot_tf_set_2.R"
+
+################################################################################
+## Reports
+################################################################################
+
+rule seqlet_overlaps_mean:
+    input:
+        bedpe_1="results/chrombpnet_nobias/pretrained_bias/{sample1}/mean/modisco/{sample1}_mean.{score_type}_scores.top_tf.bedpe.gz",
+        bedpe_2="results/chrombpnet_nobias/pretrained_bias/{sample2}/mean/modisco/{sample2}_mean.{score_type}_scores.top_tf.bedpe.gz"
+    output:
+        html="results/reports/compare_seqlets/mean/report_seqlet_overlaps.{sample1}.{sample2}.{score_type}_scores.html"
+    params:
+        group_1="{sample1}",
+        group_2="{sample2}"
+    wildcard_constraints:
+        score_type="(counts|profile)"
+    threads: 16
+    resources:
+        mem_mb=64000
+    conda: "envs/rmd_reports.yaml"
+    script: "reports/report_seqlet_overlaps.Rmd"
+
+rule seqlet_summary_mean:
+    input:
+        bedpe="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.top_tf.bedpe.gz",
+        bed_pk="resources/peaks/{sample}/{sample}.no_blacklist.bed"
+    output:
+        html="results/reports/summarize_seqlets/mean/report_seqlet_summary.{sample}.{score_type}_scores.html"
+    params:
+        sample="{sample}"
+    wildcard_constraints:
+        score_type="(counts|profile)"
+    threads: 1
+    resources:
+        mem_mb=6000
+    conda: "envs/rmd_reports.yaml"
+    script: "reports/report_seqlet_summary.Rmd"
 
 ################################################################################
 ## Tests and Utilities

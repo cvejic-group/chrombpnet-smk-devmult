@@ -1,0 +1,383 @@
+---
+author: "Mervin M Fansler"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output: 
+  html_document: 
+    code_folding: show
+    df_print: paged
+    theme: cosmo
+    toc: true
+    toc_float: true
+---
+
+
+```{r snakemake_object, include=FALSE, eval=FALSE}
+if (interactive()) { ## fake data for testing
+  Snakemake <- setClass("Snakemake", slots=c(input="list", output="list",
+                                             params="list", threads="numeric"))
+  snakemake <- Snakemake(
+    input=list(bed_pk="/work/aaa/projects/chrombpnet-devmult/pipeline/resources/peaks/IM-B/IM-B.no_blacklist.bed",
+               bedpe="/work/aaa/projects/chrombpnet-devmult/pipeline/results/chrombpnet_nobias/pretrained_bias/IM-B/mean/modisco/IM-B_mean.counts_scores.top_tf.bedpe.gz"),
+    output=list("/work/aaa/projects/chrombpnet-devmult/pipeline/results/reports/summarize_seqlets/mean/report_seqlet_summary.IM-B_mean.counts_scores.html"),
+    params=list(sample="Large-PreB"),
+    threads=8L)
+}
+
+print(snakemake)
+```
+
+
+```{r echo=FALSE}
+title_str <- sprintf("ChromBPNet Seqlet Summary - %s", snakemake@params$sample)
+```
+
+---
+title: `r title_str`
+---
+
+
+# Purpose
+
+Here we summarize the ChromBPNet seqlets in the **`r snakemake@params$sample`** sample.
+
+# Initialization
+
+## Libraries
+```{r libs, message=FALSE, warning=FALSE}
+library(magrittr)
+library(grid)
+library(tidyverse)
+library(broom)
+library(GenomicRanges)
+library(plyranges)
+library(BiocParallel)
+library(pheatmap)
+```
+
+## Parameters
+```{r set_params}
+set.seed(20250508)
+
+register(MulticoreParam(workers=snakemake@threads))
+theme_set(theme_bw())
+```
+
+## Functions
+
+```{r methods}
+read_bedpe_seqlet <- function (file) {
+  read_tsv(file,
+           col_names=c("seqnames", "start", "end",
+                       "chrom_peak", "start_peak", "end_peak",
+                       "name", "score", "strand", "strand_peak",
+                       "score_target", "pattern_id"),
+           col_types="ciiciicdffdc") %>%
+    as_granges()
+}
+
+read_bedpe_peak <- function (file) {
+  read_tsv(file,
+           col_names=c("chrom_seqlet", "start_seqlet", "end_seqlet",
+                       "seqnames", "start", "end",
+                       "name", "score_seqlet", "strand_seqlet", "strand",
+                       "score", "pattern_id"),
+           col_types="ciiciicdffdc") %>%
+    as_granges()
+}
+
+# Jaccard function
+jaccard_index <- function(gr_a, gr_b) {
+  intersected <- sum(width(reduce(intersect(gr_a, gr_b))))
+  unioned     <- sum(width(reduce(union(gr_a, gr_b))))
+  if (unioned == 0) return(NA)  # avoid division by zero
+  intersected / unioned
+}
+
+# Overlap index function
+overlap_index <- function(gr_a, gr_b) {
+  intersected <- sum(width(reduce(intersect(gr_a, gr_b))))
+  min_total   <- min(sum(width(reduce(gr_a))), sum(width(reduce(gr_b))))
+  if (min_total == 0) return(NA)
+  intersected / min_total
+}
+
+# Overlap index function
+overlap_index_left <- function(gr_a, gr_b) {
+  intersected <- sum(count_overlaps(gr_a, gr_b) > 0)
+  total_left <- length(gr_a)
+  if (total_left == 0) return(NA)
+  intersected / total_left
+}
+```
+
+# Data
+## Loading
+```{r load_data, message=FALSE}
+gr_seqlets <- read_bedpe_seqlet(snakemake@input$bedpe)
+gr_peaks <- read_bedpe_peak(snakemake@input$bedpe)
+
+n_total_raw <- length(read_lines(snakemake@input$bed_pk))
+```
+
+# Overview
+
+## Peak Counts
+
+```{r plt_peak_counts, fig.width=5, fig.height=8}
+n_peaks <- gr_peaks %>%
+  as_data_frame() %>%
+  distinct(seqnames, start, end) %>%
+  nrow()
+
+df_npeaks <- gr_peaks %>%
+  mutate(pattern_group=str_c(str_remove(pattern_id, ".[0-9]+$"), ".", name)) %>%
+  mutate(pattern_group=str_remove(pattern_group, "patterns.")) %>%
+  as_data_frame() %>%
+  distinct(seqnames, start, end, pattern_group, name) %>%
+  count(pattern_group, name, name="n_peaks")
+
+df_npeaks %>%
+  ggplot(aes(x=n_peaks, y=fct_infreq(pattern_group, n_peaks))) +
+  geom_bar(stat='identity', fill="steelblue2", color="black", linewidth=0.2) +
+  scale_x_log10(expand=c(0,0,0.05,0)) +
+  labs(x="Peaks", y=NULL)
+```
+
+In total there were `r n_total_raw` input peaks in `r snakemake@params$sample`. Among these, `r n_peaks` (`r 100*n_peaks/n_total_raw`%%) had seqlets detected.
+
+## Seqlet Counts
+
+There are `r length(gr_seqlets)` seqlets in `r snakemake@params$sample`.
+
+```{r plt_nseqlets, fig.width=5, fig.height=8}
+df_nseqlets <- gr_seqlets %>%
+  mutate(pattern_group=str_c(str_remove(pattern_id, ".[0-9]+$"), ".", name)) %>%
+  mutate(pattern_group=str_remove(pattern_group, "patterns.")) %>%
+  as_data_frame() %>%
+  distinct(seqnames, start, end, pattern_group, name) %>%
+  count(pattern_group, name, name="n_seqlets")
+
+df_nseqlets %>%
+  ggplot(aes(x=n_seqlets, y=fct_infreq(pattern_group, n_seqlets))) +
+  geom_bar(stat='identity', fill="steelblue2", color="black", linewidth=0.2) +
+  scale_x_log10(expand=c(0,0,0.05,0)) +
+  labs(x="Seqlets", y=NULL)
+```
+
+## Seqlets Per Peak
+On average, how many seqlets are in each peak?
+
+```{r plt_pk_overlap_all, fig.width=3.5, fig.height=3}
+gr_seqlets %>%
+  as_tibble() %>%
+  count(chrom_peak, start_peak, end_peak, name="n_seqlets") %>%
+  mutate(n_seqlets_fct=fct(case_when(n_seqlets >= 4 ~ "4+", TRUE ~ as.character(n_seqlets)),
+                           levels=c(0,1,2,3,"4+"))) %>%
+  count(n_seqlets_fct, name="n_peaks") %>% 
+  bind_rows(tibble(n_seqlets_fct="0", n_peaks=n_total_raw - n_peaks)) %>%
+  ggplot(aes(x=n_seqlets_fct, y=n_peaks)) +
+  geom_bar(stat='identity', fill='steelblue', color='black', linewidth=0.2) +
+  scale_x_discrete(drop=FALSE) +
+  scale_y_continuous(expand=c(0,0,0.1,0)) +
+  labs(x="Seqlets per peak", y="Peaks")
+```
+
+
+```{r plt_pk_overlap_hits, fig.width=3, fig.height=3}
+gr_seqlets %>%
+  as_tibble() %>%
+  count(chrom_peak, start_peak, end_peak, name="n_seqlets") %>%
+  mutate(n_seqlets_fct=fct(case_when(n_seqlets >= 4 ~ "4+", TRUE ~ as.character(n_seqlets)),
+                           levels=c(1,2,3,"4+"))) %>%
+  ggplot(aes(x=n_seqlets_fct)) +
+  geom_bar(fill='steelblue', color='black', linewidth=0.2) +
+  scale_y_continuous(expand=c(0,0,0.1,0)) +
+  labs(x="Seqlets per peak", y="Peaks")
+```
+
+
+## Repeating Seqlets
+Are there some seqlets that tend to occur repeatedly within a peak?
+
+```{r plt_seq_per_pk, fig.width=3, fig.height=8}
+full_join(df_npeaks, df_nseqlets, by=c("pattern_group", "name")) %>%
+  mutate(n_seq_per_peak=n_seqlets/n_peaks) %>%
+  ggplot(aes(x=n_seq_per_peak, y=fct_infreq(pattern_group, n_seq_per_peak))) +
+  geom_point() + geom_vline(xintercept=1, linetype="dashed", color="orchid", linewidth=0.5) +
+  labs(x="Seqlets per Peak", y=NULL)
+```
+
+## Frequent Combinations
+Are there some combinations that frequently occur together?
+
+First, we will compute the matrix of frequencies. This will have conditional counts based on peaks with a given TFF.
+That is, each entry will record the number of times the column TFF occurred in a peak with the row TFF. Accordingly,
+the diagonal will correspond to the total number of peaks that a TFF occurred.
+
+```{r compute_conditional_pair_freqs}
+df_seqlets <- gr_seqlets %>%
+  mutate(pattern_group=str_c(str_remove(pattern_id, ".[0-9]+$"), ".", name)) %>%
+  mutate(pattern_group=str_remove(pattern_group, "patterns."),
+         chr_str=str_c(chrom_peak, ":", start_peak, "-", end_peak)) %>%
+  as_tibble()
+
+df_distinct <- df_seqlets %>%
+  distinct(chr_str, pattern_group)
+
+ordered_levels <- df_seqlets %>%
+  distinct(pattern_group) %>%
+  mutate(group=if_else(str_detect(pattern_group, "^pos"),0,1),
+         rank=as.integer(str_replace(pattern_group, "^.*_(\\d+)\\..*$", "\\1"))) %>%
+  arrange(group, rank) %>%
+  pull(pattern_group)
+
+# df_pairs <- df_seqlets %>%
+#   select(pattern_group, chr_str) %>%
+#   group_by(chr_str) %>%
+#   filter(dplyr::n() > 1) %>%
+#   summarise(pairs=list(combn(pattern_group, 2, simplify=FALSE)), .groups='drop') %>%
+#   unnest(pairs) %>%
+#   mutate(pair=map_chr(pairs, ~ paste(sort(.x), collapse="-")))
+# 
+# df_pairs %<>%
+#   count(pair, name="n_count") %>%
+#   mutate(idx1=fct(str_extract(pair, "^[^-]+"), levels=ordered_levels),
+#          idx2=fct(str_extract(pair, "[^-]+$"), levels=ordered_levels))
+# 
+# df_pairs %>%
+#   pivot_wider(id_cols="idx1", names_from="idx2", values_from="n_count", names_expand=TRUE, values_fill=0) %>%
+#   arrange(idx1) %>%
+#   column_to_rownames("idx1") %>%
+#   as.matrix()
+
+mat_tff_tff <- matrix(0, nrow=length(ordered_levels), length(ordered_levels), dimnames=list(ordered_levels, ordered_levels))
+for (i in ordered_levels) {
+  n_cond <- df_distinct %>%
+    group_by(chr_str) %>%
+    filter(any(i %in% pattern_group)) %>%
+    ungroup() %>%
+    mutate(pattern_group=fct(pattern_group, ordered_levels)) %>%
+    count(pattern_group, .drop=FALSE) %>%
+    pull(n, pattern_group)
+  
+  mat_tff_tff[i,] <- n_cond[ordered_levels]
+}
+```
+
+### Total Counts (column TFFs found in peaks with row TFF)
+```{r fig.width=12, fig.height=12}
+pheatmap(mat_tff_tff, cluster_rows=FALSE, cluster_cols=FALSE)
+```
+
+
+### Fraction of Co-occurences (column TFFs found in peaks with row TFF)
+```{r plt_heat_cooccur_frac_hits, fig.width=12, fig.height=12}
+frac_tff_tff <- mat_tff_tff / diag(mat_tff_tff)
+pheatmap(frac_tff_tff, cluster_rows=FALSE, cluster_cols=FALSE)
+
+pheatmap(frac_tff_tff, cluster_rows=TRUE, cluster_cols=TRUE)
+```
+
+
+```{r plt_heat_cooccur_frac_hits_na, fig.width=12, fig.height=12}
+diag(frac_tff_tff) <- NA
+pheatmap(frac_tff_tff, cluster_rows=FALSE, cluster_cols=FALSE)
+
+pheatmap(frac_tff_tff, cluster_rows=TRUE, cluster_cols=TRUE)
+```
+
+
+### Fraction of All Peaks (column TFFs found in peaks with row TFF)
+```{r plt_heat_cooccur_frac_all, fig.width=12, fig.height=12}
+pheatmap(mat_tff_tff/n_total_raw, cluster_rows=FALSE, cluster_cols=FALSE)
+```
+
+
+### Significantly-Enriched Co-occurances
+```{r compute_tests}
+df_tests <- mat_tff_tff %>%
+  as_tibble(rownames="tff_cond") %>%
+  pivot_longer(cols=-1, names_to="tff_hit", values_to="freq_both") %>%
+  mutate(tff_cond=fct(tff_cond, ordered_levels),
+         tff_hit=fct(tff_hit, ordered_levels)) %>%
+  mutate(total_cond=diag(mat_tff_tff)[tff_cond],
+         total_hit=diag(mat_tff_tff)[tff_hit],
+         total_all=n_total_raw) %>%
+  mutate(freq_cond=total_cond-freq_both,
+         freq_hit=total_hit-freq_both,
+         freq_none=total_all - (freq_both + freq_cond + freq_hit)) %>%
+  mutate(across(starts_with("freq_"), ~ .x / total_all, .names="frac_{.col}")) %>%
+  filter(as.integer(tff_hit) > as.integer(tff_cond)) %>%
+  rowwise() %>%
+  mutate(
+    test=list(fisher.test(matrix(c(freq_none,freq_cond,freq_hit,freq_both), nrow=2))),
+    tidy_test=list(tidy(test))
+  ) %>% unnest(tidy_test) %>% select(-test) %>%
+  mutate(q_val=p.adjust(p.value, "BH"))
+
+df_tests %>%
+  filter(q_val < 0.05, freq_both > 10, estimate > 2) %>%
+  arrange(-estimate)
+```
+
+## Co-occurrence conditional fraction
+Bars here show the fraction of peaks with the row TFF that also have the column TFF.
+```{r plot_conditional_fraction, fig.width=8, fig.height=20}
+df_tests %>%
+  filter(q_val < 0.01, freq_both > 10, estimate > 2) %>%
+  mutate(tff_cond_fmt=fct_relabel(tff_cond, ~ str_replace(.x, fixed("."), "\n"))) %>%
+  ggplot(aes(x=tff_hit, y=freq_both/total_cond)) +
+  geom_bar(stat='identity', fill="steelblue", color="black", linewidth=0.2, width=0.8) +
+  facet_grid(rows=vars(tff_cond_fmt)) +
+  scale_x_discrete(guide=guide_axis(angle=90)) +
+  scale_y_continuous(expand=c(0,0.01,0.2,0)) +
+  labs(x=NULL, y="Fraction of Conditional Co-occurrence") +
+  theme(strip.text = element_text(size=6))
+```
+
+## Outliers without Fewer Overlaps
+
+```{r tbl_rarer, fig.width=8, fig.height=20}
+df_tests %>%
+  filter(q_val < 0.01, estimate < 0.2)
+```
+
+```{r plt_all_estimates, fig.width=4, fig.height=8}
+df_tests %>%
+  pivot_longer(cols=starts_with("tff"), names_to="ttf_group", values_to="pattern_group") %>%
+  filter(estimate > 0) %>%
+  mutate(pattern_group_ord=fct_reorder(pattern_group, estimate)) %>%
+  ggplot(aes(x=log10(estimate), y=pattern_group_ord)) +
+  geom_vline(xintercept=0, color="orchid", linetype="dashed") +
+  geom_boxplot(outliers=FALSE) +
+  geom_jitter(width=0, height=0.2, size=0.5, alpha=0.3) +
+  coord_cartesian(xlim=c(-2,2)) +
+  labs(x="Log10(Odds Ratio)", y=NULL)
+```
+
+---
+
+# Runtime Details
+## Session Info
+<details>
+```{r sesh_info, echo=FALSE}
+sessionInfo()
+```
+</details>
+
+## Conda Environment
+<details>
+```{bash conda_info, comment="", echo=FALSE}
+if ! command -v conda &> /dev/null
+then
+  echo "Conda not detected."
+elif [ -z "${CONDA_PREFIX}" ]
+then
+  echo "No active Conda environment."
+else
+  echo "## Conda Environment YAML"
+  PREFIX=$(dirname $(dirname $(which R)))
+  conda env export -p $PREFIX
+fi
+```
+</details>

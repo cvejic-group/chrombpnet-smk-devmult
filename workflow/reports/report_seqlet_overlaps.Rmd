@@ -1,0 +1,467 @@
+---
+author: "Mervin M Fansler"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output: 
+  html_document: 
+    code_folding: show
+    df_print: paged
+    theme: cosmo
+    toc: true
+    toc_float: true
+---
+
+
+```{r snakemake_object, include=FALSE, eval=FALSE}
+if (interactive()) { ## fake data for testing
+  Snakemake <- setClass("Snakemake", slots=c(input="list", output="list",
+                                             params="list", threads="numeric"))
+  snakemake <- Snakemake(
+    input=list(bedpe_1="/work/aaa/projects/chrombpnet-devmult/pipeline/results/chrombpnet_nobias/pretrained_bias/Large-PreB/mean/modisco/Large-PreB_mean.counts_scores.top_tf.bedpe.gz",
+               bedpe_2="/work/aaa/projects/chrombpnet-devmult/pipeline/results/chrombpnet_nobias/pretrained_bias/IM-B/mean/modisco/IM-B_mean.counts_scores.top_tf.bedpe.gz"),
+    output=list("/work/aaa/projects/chrombpnet-devmult/pipeline/results/reports/seqlet-overlap/PreProB_IM-B.mean.counts_counts.html"),
+    params=list(group_1="Large-PreB",
+                group_2="IM-B"),
+    threads=8L)
+}
+
+print(snakemake)
+```
+
+
+```{r echo=FALSE}
+title_str <- sprintf("ChromBPNet Seqlet Overlaps - %s vs %s", snakemake@params$group_1, snakemake@params$group_2)
+```
+
+---
+title: `r title_str`
+---
+
+
+# Purpose
+
+Here we contrast the ChromBPNet seqlets across **`r snakemake@params$group_1`** and **`r snakemake@params$group_2`**.
+We are interested in both how much is shared and how much is unique.
+
+# Initialization
+
+## Libraries
+```{r libs, message=FALSE, warning=FALSE}
+library(magrittr)
+library(grid)
+library(tidyverse)
+library(GenomicRanges)
+library(plyranges)
+library(BiocParallel)
+library(pheatmap)
+```
+
+## Parameters
+```{r set_params}
+set.seed(20250508)
+
+register(MulticoreParam(workers=snakemake@threads))
+theme_set(theme_bw())
+```
+
+## Functions
+
+```{r methods}
+read_bedpe_seqlet <- function (file) {
+  read_tsv(file,
+           col_names=c("seqnames", "start", "end",
+                       "chrom_peak", "start_peak", "end_peak",
+                       "name", "score", "strand", "strand_peak",
+                       "score_target", "pattern_id"),
+           col_types="ciiciicdffdc") %>%
+    as_granges()
+}
+
+read_bedpe_peak <- function (file) {
+  read_tsv(file,
+           col_names=c("chrom_seqlet", "start_seqlet", "end_seqlet",
+                       "seqnames", "start", "end",
+                       "name", "score_seqlet", "strand_seqlet", "strand",
+                       "score", "pattern_id"),
+           col_types="ciiciicdffdc") %>%
+    as_granges()
+}
+
+# Jaccard function
+jaccard_index <- function(gr_a, gr_b) {
+  intersected <- sum(width(reduce(intersect(gr_a, gr_b))))
+  unioned     <- sum(width(reduce(union(gr_a, gr_b))))
+  if (unioned == 0) return(NA)  # avoid division by zero
+  intersected / unioned
+}
+
+# Overlap index function
+overlap_index <- function(gr_a, gr_b) {
+  intersected <- sum(width(reduce(intersect(gr_a, gr_b))))
+  min_total   <- min(sum(width(reduce(gr_a))), sum(width(reduce(gr_b))))
+  if (min_total == 0) return(NA)
+  intersected / min_total
+}
+
+# Overlap index function
+overlap_index_left <- function(gr_a, gr_b) {
+  intersected <- sum(count_overlaps(gr_a, gr_b) > 0)
+  total_left <- length(gr_a)
+  if (total_left == 0) return(NA)
+  intersected / total_left
+}
+```
+
+# Data
+## Loading
+```{r load_data, message=FALSE}
+gr_seqlets1 <- read_bedpe_seqlet(snakemake@input$bedpe_1)
+gr_seqlets2 <- read_bedpe_seqlet(snakemake@input$bedpe_2)
+gr_peaks1 <- read_bedpe_peak(snakemake@input$bedpe_1)
+gr_peaks2 <- read_bedpe_peak(snakemake@input$bedpe_2)
+```
+
+# Overview
+
+## Peak Counts
+
+```{r plt_peak_counts, fig.width=5, fig.height=8}
+n_peaks1 <- gr_peaks1 %>%
+  as_data_frame() %>%
+  distinct(seqnames, start, end) %>%
+  nrow()
+
+n_peaks2 <- gr_peaks2 %>%
+  as_data_frame() %>%
+  distinct(seqnames, start, end) %>%
+  nrow()
+
+df_npeaks1 <- gr_peaks1 %>%
+  mutate(pattern_group=str_c(str_remove(pattern_id, ".[0-9]+$"), ".", name)) %>%
+  mutate(pattern_group=str_remove(pattern_group, "patterns.")) %>%
+  as_data_frame() %>%
+  distinct(seqnames, start, end, pattern_group, name) %>%
+  count(pattern_group, name, name="n_peaks")
+
+df_npeaks2 <- gr_peaks2 %>%
+  mutate(pattern_group=str_c(str_remove(pattern_id, ".[0-9]+$"), ".", name)) %>%
+  mutate(pattern_group=str_remove(pattern_group, "patterns.")) %>%
+  as_data_frame() %>%
+  distinct(seqnames, start, end, pattern_group, name) %>%
+  count(pattern_group, name, name="n_peaks")
+
+df_npeaks1 %>%
+  ggplot(aes(x=n_peaks, y=fct_infreq(pattern_group, n_peaks))) +
+  geom_bar(stat='identity', fill="steelblue2", color="black", linewidth=0.2) +
+  scale_x_log10(expand=c(0,0,0.05,0)) +
+  labs(title=snakemake@params$group_1, x="Peaks", y=NULL)
+
+df_npeaks2 %>%
+  ggplot(aes(x=n_peaks, y=fct_infreq(pattern_group, n_peaks))) +
+  geom_bar(stat='identity', fill="steelblue2", color="black", linewidth=0.2) +
+  scale_x_log10(expand=c(0,0,0.05,0)) +
+  labs(title=snakemake@params$group_2, x="Peaks", y=NULL)
+```
+
+In total there are `r n_peaks1` peaks in `r snakemake@params$group_1` and `r n_peaks2` peaks in `r snakemake@params$group_2`.
+
+## Seqlet Counts
+
+There are `r length(gr_seqlets1)` seqlets in `r snakemake@params$group_1` and `r length(gr_seqlets2)` seqlets in `r snakemake@params$group_2`.
+
+```{r plt_nseqlets, fig.width=5, fig.height=8}
+df_nseqlets1 <- gr_seqlets1 %>%
+  mutate(pattern_group=str_c(str_remove(pattern_id, ".[0-9]+$"), ".", name)) %>%
+  mutate(pattern_group=str_remove(pattern_group, "patterns.")) %>%
+  as_data_frame() %>%
+  distinct(seqnames, start, end, pattern_group, name) %>%
+  count(pattern_group, name, name="n_seqlets")
+df_nseqlets2 <- gr_seqlets2 %>%
+  mutate(pattern_group=str_c(str_remove(pattern_id, ".[0-9]+$"), ".", name)) %>%
+  mutate(pattern_group=str_remove(pattern_group, "patterns.")) %>%
+  as_data_frame() %>%
+  distinct(seqnames, start, end, pattern_group, name) %>%
+  count(pattern_group, name, name="n_seqlets")
+
+
+df_nseqlets1 %>%
+  ggplot(aes(x=n_seqlets, y=fct_infreq(pattern_group, n_seqlets))) +
+  geom_bar(stat='identity', fill="steelblue2", color="black", linewidth=0.2) +
+  scale_x_log10(expand=c(0,0,0.05,0)) +
+  labs(title=snakemake@params$group_1, x="Seqlets", y=NULL)
+
+df_nseqlets2 %>%
+  ggplot(aes(x=n_seqlets, y=fct_infreq(pattern_group, n_seqlets))) +
+  geom_bar(stat='identity', fill="steelblue2", color="black", linewidth=0.2) +
+  scale_x_log10(expand=c(0,0,0.05,0)) +
+  labs(title=snakemake@params$group_2, x="Seqlets", y=NULL)
+```
+## Seqlets Per Peak
+Are there some seqlets that tend to occur repeatedly within a peak?
+
+```{r plt_seq_per_pk, fig.width=3, fig.height=8}
+full_join(df_npeaks1, df_nseqlets1, by=c("pattern_group", "name")) %>%
+  mutate(n_seq_per_peak=n_seqlets/n_peaks) %>%
+  ggplot(aes(x=n_seq_per_peak, y=fct_infreq(pattern_group, n_seq_per_peak))) +
+  geom_point() + geom_vline(xintercept=1, linetype="dashed", color="orchid", linewidth=0.5) +
+  labs(title=snakemake@params$group_1, x="Seqlets per Peak", y=NULL)
+  
+full_join(df_npeaks2, df_nseqlets2, by=c("pattern_group", "name")) %>%
+  mutate(n_seq_per_peak=n_seqlets/n_peaks) %>%
+  ggplot(aes(x=n_seq_per_peak, y=fct_infreq(pattern_group, n_seq_per_peak))) +
+  geom_point() + geom_vline(xintercept=1, linetype="dashed", color="orchid", linewidth=0.5) +
+  labs(title=snakemake@params$group_2, x="Seqlets per Peak", y=NULL)
+```
+
+# Comparison
+## Total Peak Overlap
+How many peaks overlap in total?
+
+```{r plt_pk_overlap_total, fig.width=3, fig.height=3}
+gr_peaks_uniq1 <- gr_peaks1 %>%
+  as_data_frame() %>%
+  distinct(seqnames, start, end) %>%
+  as_granges()
+
+gr_peaks_uniq2 <- gr_peaks2 %>%
+  as_data_frame() %>%
+  distinct(seqnames, start, end) %>%
+  as_granges()
+
+n_overlapping1 <-sum(count_overlaps(gr_peaks_uniq1, gr_peaks_uniq2) > 0)
+n_overlapping2 <-sum(count_overlaps(gr_peaks_uniq2, gr_peaks_uniq1) > 0)
+
+tibble(group_id=c(snakemake@params$group_1, snakemake@params$group_1,
+                  snakemake@params$group_2, snakemake@params$group_2),
+       peak_type=fct(c("shared", "unique", "shared", "unique"), levels=c("unique", "shared")),
+       n_peaks=c(n_overlapping1, n_peaks1 - n_overlapping1,
+                 n_overlapping2, n_peaks2 - n_overlapping2)) %>%
+  ggplot(aes(x=group_id, y=n_peaks, fill=peak_type)) +
+  geom_bar(stat='identity', position='stack', color='black', linewidth=0.3) +
+  scale_x_discrete(guide=guide_axis(angle=90)) +
+  scale_y_continuous(expand=c(0,0,0.1,0)) +
+  scale_fill_manual(values=c("unique"="grey80", shared="steelblue3")) +
+  labs(x=NULL, y="Peaks", fill="Type")
+```
+
+## Total Seqlet Overlap
+How many seqlets overlap in total?
+
+```{r plt_seq_overlap_total, fig.width=3, fig.height=3}
+n_overlapping1 <-sum(count_overlaps(gr_seqlets1, gr_seqlets2) > 0)
+n_overlapping2 <-sum(count_overlaps(gr_seqlets2, gr_seqlets1) > 0)
+
+tibble(group_id=c(snakemake@params$group_1, snakemake@params$group_1,
+                  snakemake@params$group_2, snakemake@params$group_2),
+       peak_type=fct(c("shared", "unique", "shared", "unique"), levels=c("unique", "shared")),
+       n_seqlets=c(n_overlapping1, length(gr_seqlets1) - n_overlapping1,
+                 n_overlapping2, length(gr_seqlets2) - n_overlapping2)) %>%
+  ggplot(aes(x=group_id, y=n_seqlets, fill=peak_type)) +
+  geom_bar(stat='identity', position='stack', color='black', linewidth=0.3) +
+  scale_x_discrete(guide=guide_axis(angle=90)) +
+  scale_y_continuous(expand=c(0,0,0.1,0)) +
+  scale_fill_manual(values=c("unique"="grey80", shared="steelblue3")) +
+  labs(x=NULL, y="Seqlets", fill="Type")
+```
+
+## Seqlet Overlap by Pattern
+### Jaccard Index
+The Jaccard index checks the fraction of shared among the union between pairs of patterns. This indicates the total
+amount of sharing between patterns.
+
+```{r compute_jaccard, fig.width=12, fig.height=12}
+# Split by pattern_group
+gr1_split <- gr_seqlets1 %>%
+  mutate(pattern_group=str_c(str_remove(pattern_id, ".[0-9]+$"), ".", name)) %>%
+  mutate(pattern_group=str_remove(pattern_group, "patterns.")) %>%
+  split(f=.$pattern_group)
+gr2_split <- gr_seqlets2 %>%
+  mutate(pattern_group=str_c(str_remove(pattern_id, ".[0-9]+$"), ".", name)) %>%
+  mutate(pattern_group=str_remove(pattern_group, "patterns.")) %>%
+  split(f=.$pattern_group)
+
+idx1 <- names(gr1_split)
+idx2 <- names(gr2_split)
+
+combo_df <- expand.grid(pattern1=idx1, pattern2=idx2, stringsAsFactors = FALSE)
+
+# compute jaccard
+jac_values <- bplapply(seq_len(nrow(combo_df)), function(i) {
+  row <- combo_df[i, ]
+  jaccard_index(gr1_split[[row$pattern1]], gr2_split[[row$pattern2]])
+})
+
+mat_jac <- matrix(unlist(jac_values), nrow = length(idx1), ncol = length(idx2),
+                  dimnames = list(idx1, idx2), byrow = FALSE)
+```
+
+
+#### Full Scale
+```{r plt_jaccard, fig.width=12, fig.height=12}
+pheatmap(mat_jac, cluster_rows=TRUE, cluster_cols=TRUE)
+# x-axis label
+grid.text(snakemake@params$group_2, y=unit(0.98, "npc"))
+# y-axis label
+grid.text(snakemake@params$group_1, x=unit(0.02, "npc"), rot=90)
+```
+
+
+#### Threshold (Max 0.1)
+```{r plt_jaccard2, fig.width=12, fig.height=12}
+pheatmap(mat_jac, cluster_rows=TRUE, cluster_cols=TRUE, breaks = seq(0, 0.1, length.out = 100))
+# x-axis label
+grid.text(snakemake@params$group_2, y=unit(0.98, "npc"))
+# y-axis label
+grid.text(snakemake@params$group_1, x=unit(0.02, "npc"), rot=90)
+```
+
+### Overlap Index
+The overlap index checks the fraction of shared within the smallest set. This identifies subset-superset relationships.
+
+```{r compute_overlapi, fig.width=12, fig.height=12}
+overlap_values <- bplapply(seq_len(nrow(combo_df)), function(i) {
+  row <- combo_df[i, ]
+  overlap_index(gr1_split[[row$pattern1]], gr2_split[[row$pattern2]])
+})
+
+mat_overlap <- matrix(unlist(overlap_values), nrow=length(idx1), ncol=length(idx2),
+                      dimnames=list(idx1,idx2), byrow=FALSE)
+```
+
+
+#### Full Scale
+```{r plt_overlapi, fig.width=12, fig.height=12}
+pheatmap(mat_overlap, cluster_rows=TRUE, cluster_cols=TRUE)
+# x-axis label
+grid.text(snakemake@params$group_2, y=unit(0.98, "npc"))
+# y-axis label
+grid.text(snakemake@params$group_1, x=unit(0.02, "npc"), rot=90)
+```
+
+
+#### Threshold (Max 0.1)
+```{r plt_overlapi2, fig.width=12, fig.height=12}
+pheatmap(mat_overlap, cluster_rows=TRUE, cluster_cols=TRUE, breaks=seq(0,0.1,length.out=100))
+# x-axis label
+grid.text(snakemake@params$group_2, y=unit(0.98, "npc"))
+# y-axis label
+grid.text(snakemake@params$group_1, x=unit(0.02, "npc"), rot=90)
+```
+
+
+### Rare Overlaps
+#### `r snakemake@params$group_1` Seqlets
+```{r plt_overlapi_rare_row, fig.width=6, fig.height=6}
+idx_row <- rowSums(mat_overlap >= 0.5) == 0
+idx_col <- colSums(mat_overlap[idx_row,] >= 0.05) > 0
+pheatmap(mat_overlap[idx_row, idx_col], cluster_rows=TRUE, cluster_cols=TRUE)
+# x-axis label
+grid.text(snakemake@params$group_2, y=unit(0.98, "npc"))
+# y-axis label
+grid.text(snakemake@params$group_1, x=unit(0.02, "npc"), rot=90)
+```
+
+#### `r snakemake@params$group_2` Seqlets
+```{r plt_overlapi_rare_col, fig.width=6, fig.height=6}
+idx_col <- colSums(mat_overlap >= 0.5) == 0
+idx_row <- rowSums(mat_overlap[,idx_col] >= 0.05) > 0
+pheatmap(mat_overlap[idx_row, idx_col], cluster_rows=TRUE, cluster_cols=TRUE)
+# x-axis label
+grid.text(snakemake@params$group_2, y=unit(0.98, "npc"))
+# y-axis label
+grid.text(snakemake@params$group_1, x=unit(0.02, "npc"), rot=90)
+```
+
+### Directed Overlap Index
+The directed overlap index checks the fraction of shared among the first set. This identifies subset-superset relationships.
+
+#### Fraction of `r snakemake@params$group_1` Seqlets
+```{r compute_doverlapi1, fig.width=12, fig.height=12}
+doverlap_values1 <- bplapply(seq_len(nrow(combo_df)), function(i) {
+  row <- combo_df[i, ]
+  overlap_index_left(gr1_split[[row$pattern1]], gr2_split[[row$pattern2]])
+})
+
+mat_doverlap1 <- matrix(unlist(doverlap_values1), nrow=length(idx1), ncol=length(idx2),
+                      dimnames=list(idx1,idx2), byrow=FALSE)
+```
+
+
+```{r plt_doverlapi1, fig.width=12, fig.height=12}
+pheatmap(mat_doverlap1, cluster_rows=TRUE, cluster_cols=TRUE)
+# x-axis label
+grid.text(snakemake@params$group_2, y=unit(0.98, "npc"))
+# y-axis label
+grid.text(snakemake@params$group_1, x=unit(0.02, "npc"), rot=90)
+```
+
+
+#### Rare Overlaps
+```{r plt_doverlapi_rare, fig.width=8, fig.height=8}
+idx_row <- rowSums(mat_doverlap1 >= 0.5) == 0
+idx_col <- colSums(mat_doverlap1[idx_row,] >= 0.05) > 0
+pheatmap(mat_doverlap1[idx_row, idx_col], cluster_rows=TRUE, cluster_cols=TRUE)
+# x-axis label
+grid.text(snakemake@params$group_2, y=unit(0.98, "npc"))
+# y-axis label
+grid.text(snakemake@params$group_1, x=unit(0.02, "npc"), rot=90)
+```
+
+#### Fraction of `r snakemake@params$group_2` Seqlets
+```{r compute_doverlapi2, fig.width=12, fig.height=12}
+doverlap_values2 <- bplapply(seq_len(nrow(combo_df)), function(i) {
+  row <- combo_df[i, ]
+  overlap_index_left(gr2_split[[row$pattern2]], gr1_split[[row$pattern1]])
+})
+
+mat_doverlap2 <- matrix(unlist(doverlap_values2), nrow=length(idx1), ncol=length(idx2),
+                      dimnames=list(idx1,idx2), byrow=FALSE)
+```
+
+
+```{r plt_doverlapi2, fig.width=12, fig.height=12}
+pheatmap(mat_doverlap2, cluster_rows=TRUE, cluster_cols=TRUE)
+# x-axis label
+grid.text(snakemake@params$group_2, y=unit(0.98, "npc"))
+# y-axis label
+grid.text(snakemake@params$group_1, x=unit(0.02, "npc"), rot=90)
+```
+
+
+#### Rare Overlaps
+```{r plt_doverlapi_rare2, fig.width=8, fig.height=8}
+idx_col <- colSums(mat_doverlap2 >= 0.5) == 0
+idx_row <- rowSums(mat_doverlap2[,idx_col] >= 0.05) > 0
+pheatmap(mat_doverlap2[idx_row, idx_col], cluster_rows=TRUE, cluster_cols=TRUE)
+# x-axis label
+grid.text(snakemake@params$group_2, y=unit(0.98, "npc"))
+# y-axis label
+grid.text(snakemake@params$group_1, x=unit(0.02, "npc"), rot=90)
+```
+
+
+---
+
+# Runtime Details
+## Session Info
+<details>
+```{r sesh_info, echo=FALSE}
+sessionInfo()
+```
+</details>
+
+## Conda Environment
+<details>
+```{bash conda_info, comment="", echo=FALSE}
+if ! command -v conda &> /dev/null
+then
+  echo "Conda not detected."
+elif [ -z "${CONDA_PREFIX}" ]
+then
+  echo "No active Conda environment."
+else
+  echo "## Conda Environment YAML"
+  PREFIX=$(dirname $(dirname $(which R)))
+  conda env export -p $PREFIX
+fi
+```
+</details>

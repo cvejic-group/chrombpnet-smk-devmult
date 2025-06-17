@@ -32,6 +32,14 @@ pretrained_bias:
   outdir: "resources/bias/pretrained"
   h5: "resources/bias/pretrained/ENCSR868FGK_bias_fold_0.h5"
 
+# `meme`
+# MEME file
+# Defines the MEME database to query against
+meme:
+  file: "resources/meme/H13CORE_meme_format.meme"
+  url: "https://hocomoco13.autosome.org/final_bundle/hocomoco13/H13CORE/formatted_motifs/H13CORE_meme_format.meme"
+  json: "https://hocomoco13.autosome.org/final_bundle/hocomoco13/H13CORE/H13CORE_annotation.jsonl"
+
 # `samples`
 # BAM files
 # Specifies input BAM files that constitute a sample
@@ -637,6 +645,11 @@ peak_bed:
   Endothelia: /work/DevM_analysis/04.regulome/data/archr_48FL/PeakBED/celltype/Endothelia.bed
   GP: /work/DevM_analysis/04.regulome/data/archr_48FL/PeakBED/celltype/GP.bed
   Granulocyte: /work/DevM_analysis/04.regulome/data/archr_48FL/PeakBED/celltype/Granulocyte.bed
+  HSC-0: /work/DevM_analysis/04.regulome/data/archr_48FL/PeakBED/celltype/HSC_0.bed
+  HSC-1: /work/DevM_analysis/04.regulome/data/archr_48FL/PeakBED/celltype/HSC_1.bed
+  HSC-2: /work/DevM_analysis/04.regulome/data/archr_48FL/PeakBED/celltype/HSC_2.bed
+  HSC-3: /work/DevM_analysis/04.regulome/data/archr_48FL/PeakBED/celltype/HSC_3.bed
+  HSC-4: /work/DevM_analysis/04.regulome/data/archr_48FL/PeakBED/celltype/HSC_4.bed
   HSC: /work/DevM_analysis/04.regulome/data/archr_48FL/PeakBED/celltype/HSC.bed
   Hepatocyte: /work/DevM_analysis/04.regulome/data/archr_48FL/PeakBED/celltype/Hepatocyte.bed
   ILCP: /work/DevM_analysis/04.regulome/data/archr_48FL/PeakBED/celltype/ILCP.bed
@@ -1055,6 +1068,186 @@ peak_bed:
   pDC_PCW8: /work/DevM_analysis/04.regulome/data/archr_48FL/PeakBED/PCW_celltype/pDC_PCW8.bed
   pDC_PCW9: /work/DevM_analysis/04.regulome/data/archr_48FL/PeakBED/PCW_celltype/pDC_PCW9.bed
 
+peak_gene_link:
+  scE2G:
+    # by cell type
+    ASDC: /work/DevM_analysis/data/E2G/scE2G/ASDC_scE2G.enh2gene.bedpe
+    Cycling-LP: /work/DevM_analysis/data/E2G/scE2G/Cycling-LP_scE2G.enh2gene.bedpe
+    Early-Ery: /work/DevM_analysis/data/E2G/scE2G/Early-Ery_scE2G.enh2gene.bedpe
+    Endothelia: /work/DevM_analysis/data/E2G/scE2G/Endothelia_scE2G.enh2gene.bedpe
+    GP: /work/DevM_analysis/data/E2G/scE2G/GP_scE2G.enh2gene.bedpe
+    Granulocyte: /work/DevM_analysis/data/E2G/scE2G/Granulocyte_scE2G.enh2gene.bedpe
+    HSC_PCW5: /work/DevM_analysis/data/E2G/scE2G/HSC_PCW5_scE2G.enh2gene.bedpe
+    HSC_PCW6: /work/DevM_analysis/data/E2G/scE2G/HSC_PCW6_scE2G.enh2gene.bedpe
+    HSC_PCW7: /work/DevM_analysis/data/E2G/scE2G/HSC_PCW7_scE2G.enh2gene.bedpe
+    HSC_PCW8: /work/DevM_analysis/data/E2G/scE2G/HSC_PCW8_scE2G.enh2gene.bedpe
+    HSC_PCW9: /work/DevM_analysis/data/E2G/scE2G/HSC_PCW9_scE2G.enh2gene.bedpe
+    HSC_PCW10: /work/DevM_analysis/data/E2G/scE2G/HSC_PCW10_scE2G.enh2gene.bedpe
+    HSC_PCW11: /work/DevM_analysis/data/E2G/scE2G/HSC_PCW11_scE2G.enh2gene.bedpe
+    HSC_PCW12: /work/DevM_analysis/data/E2G/scE2G/HSC_PCW12_scE2G.enh2gene.bedpe
+    HSC_PCW13: /work/DevM_analysis/data/E2G/scE2G/HSC_PCW13_scE2G.enh2gene.bedpe
+    HSC_PCW14: /work/DevM_analysis/data/E2G/scE2G/HSC_PCW14_scE2G.enh2gene.bedpe
+    HSC_PCW15: /work/DevM_analysis/data/E2G/scE2G/HSC_PCW15_scE2G.enh2gene.bedpe
+    HSC_PCW16: /work/DevM_analysis/data/E2G/scE2G/HSC_PCW16_scE2G.enh2gene.bedpe
+    HSC_PCW17: /work/DevM_analysis/data/E2G/scE2G/HSC_PCW17_scE2G.enh2gene.bedpe
+    HSC_PCW18: /work/DevM_analysis/data/E2G/scE2G/HSC_PCW18_scE2G.enh2gene.bedpe
+    HSC: /work/DevM_analysis/data/E2G/scE2G/HSC_scE2G.enh2gene.bedpe
+    Hepatocyte: /work/DevM_analysis/data/E2G/scE2G/Hepatocyte_scE2G.enh2gene.bedpe
+    ILCP: /work/DevM_analysis/data/E2G/scE2G/ILCP_scE2G.enh2gene.bedpe
+    IM-B: /work/DevM_analysis/data/E2G/scE2G/IM-B_scE2G.enh2gene.bedpe
+    Kupffer: /work/DevM_analysis/data/E2G/scE2G/Kupffer_scE2G.enh2gene.bedpe
+    LMPP: /work/DevM_analysis/data/E2G/scE2G/LMPP_scE2G.enh2gene.bedpe
+    LP: /work/DevM_analysis/data/E2G/scE2G/LP_scE2G.enh2gene.bedpe
+    Large-PreB: /work/DevM_analysis/data/E2G/scE2G/Large-PreB_scE2G.enh2gene.bedpe
+    Late-Ery: /work/DevM_analysis/data/E2G/scE2G/Late-Ery_scE2G.enh2gene.bedpe
+    MDP: /work/DevM_analysis/data/E2G/scE2G/MDP_scE2G.enh2gene.bedpe
+    MEMP-Ery: /work/DevM_analysis/data/E2G/scE2G/MEMP-Ery_scE2G.enh2gene.bedpe
+    MEMP-MK: /work/DevM_analysis/data/E2G/scE2G/MEMP-MK_scE2G.enh2gene.bedpe
+    MEMP-Mast-Ery: /work/DevM_analysis/data/E2G/scE2G/MEMP-Mast-Ery_scE2G.enh2gene.bedpe
+    MEMP-t: /work/DevM_analysis/data/E2G/scE2G/MEMP-t_scE2G.enh2gene.bedpe
+    MEMP: /work/DevM_analysis/data/E2G/scE2G/MEMP_scE2G.enh2gene.bedpe
+    MEP: /work/DevM_analysis/data/E2G/scE2G/MEP_scE2G.enh2gene.bedpe
+    MK: /work/DevM_analysis/data/E2G/scE2G/MK_scE2G.enh2gene.bedpe
+    Mast: /work/DevM_analysis/data/E2G/scE2G/Mast_scE2G.enh2gene.bedpe
+    MastP-t: /work/DevM_analysis/data/E2G/scE2G/MastP-t_scE2G.enh2gene.bedpe
+    MastP: /work/DevM_analysis/data/E2G/scE2G/MastP_scE2G.enh2gene.bedpe
+    Monocyte: /work/DevM_analysis/data/E2G/scE2G/Monocyte_scE2G.enh2gene.bedpe
+    NK: /work/DevM_analysis/data/E2G/scE2G/NK_scE2G.enh2gene.bedpe
+    PreProB: /work/DevM_analysis/data/E2G/scE2G/PreProB_scE2G.enh2gene.bedpe
+    ProB-1: /work/DevM_analysis/data/E2G/scE2G/ProB-1_scE2G.enh2gene.bedpe
+    ProB-2: /work/DevM_analysis/data/E2G/scE2G/ProB-2_scE2G.enh2gene.bedpe
+    Small-PreB: /work/DevM_analysis/data/E2G/scE2G/Small-PreB_scE2G.enh2gene.bedpe
+    T: /work/DevM_analysis/data/E2G/scE2G/T_scE2G.enh2gene.bedpe
+    cDC1: /work/DevM_analysis/data/E2G/scE2G/cDC1_scE2G.enh2gene.bedpe
+    cDC2: /work/DevM_analysis/data/E2G/scE2G/cDC2_scE2G.enh2gene.bedpe
+    pDC: /work/DevM_analysis/data/E2G/scE2G/pDC_scE2G.enh2gene.bedpe
+
+sample_contrast:
+  - [HSC, LP]
+  - [HSC, Cycling-LP]
+  - [HSC, LMPP]
+  - [HSC, MDP]
+  - [HSC, MEMP-t]
+  - [HSC, MastP-t]
+  - [HSC_PCW5, LP]
+  - [HSC_PCW5, Cycling-LP]
+  - [HSC_PCW5, LMPP]
+  - [HSC_PCW5, MDP]
+  - [HSC_PCW5, MEMP-t]
+  - [HSC_PCW5, MastP-t]
+  - [HSC_PCW6, LP]
+  - [HSC_PCW6, Cycling-LP]
+  - [HSC_PCW6, LMPP]
+  - [HSC_PCW6, MDP]
+  - [HSC_PCW6, MEMP-t]
+  - [HSC_PCW6, MastP-t]
+
+  - [HSC_PCW5, HSC_PCW6]
+  - [HSC_PCW5, HSC_PCW7]
+  - [HSC_PCW5, HSC_PCW8]
+  - [HSC_PCW5, HSC_PCW17]
+  - [HSC_PCW5, HSC_PCW18]
+  - [HSC_PCW6, HSC_PCW7]
+  - [HSC_PCW6, HSC_PCW8]
+  - [HSC_PCW6, HSC_PCW17]
+  - [HSC_PCW6, HSC_PCW18]
+  - [HSC_PCW7, HSC_PCW8]
+  - [HSC_PCW7, HSC_PCW17]
+  - [HSC_PCW7, HSC_PCW18]
+  - [HSC_PCW8, HSC_PCW17]
+  - [HSC_PCW8, HSC_PCW18]
+  - [HSC_PCW17, HSC_PCW18]
+  
+  - [HSC_PCW5, PreProB_PCW5]
+  - [Cycling-LP, PreProB_PCW5]
+  - [LMPP, PreProB_PCW5]
+  - [LP, PreProB_PCW5]
+  - [HSC_PCW6, PreProB_PCW6]
+  - [Cycling-LP, PreProB_PCW6]
+  - [LMPP, PreProB_PCW6]
+  - [LP, PreProB_PCW6]
+  - [HSC_PCW7, PreProB_PCW7]
+  - [Cycling-LP, PreProB_PCW7]
+  - [LMPP, PreProB_PCW7]
+  - [LP, PreProB_PCW7]
+  - [HSC_PCW8, PreProB_PCW8]
+  - [Cycling-LP, PreProB_PCW8]
+  - [LMPP, PreProB_PCW8]
+  - [LP, PreProB_PCW8]
+  # - [HSC_PCW9, PreProB_PCW9]
+  # - [Cycling-LP, PreProB_PCW9]
+  # - [LMPP, PreProB_PCW9]
+  # - [LP, PreProB_PCW9]
+  # - [HSC_PCW10, PreProB_PCW10]
+  # - [Cycling-LP, PreProB_PCW10]
+  # - [LMPP, PreProB_PCW10]
+  # - [LP, PreProB_PCW10]
+  # - [HSC_PCW11, PreProB_PCW11]
+  # - [Cycling-LP, PreProB_PCW11]
+  # - [LMPP, PreProB_PCW11]
+  # - [LP, PreProB_PCW11]
+  # - [HSC_PCW12, PreProB_PCW12]
+  # - [Cycling-LP, PreProB_PCW12]
+  # - [LMPP, PreProB_PCW12]
+  # - [LP, PreProB_PCW12]
+
+  - [HSC, ASDC]
+  - [MDP, ASDC]
+  - [HSC, cDC1]
+  - [MDP, cDC1]
+  - [HSC, cDC2]
+  - [MDP, cDC2]
+  - [HSC, pDC]
+  - [MDP, pDC]
+
+  - [MDP, ASDC]
+  - [ASDC, cDC1]
+  - [ASDC, cDC2]
+  - [ASDC, pDC]
+  - [cDC1, cDC2]
+  - [cDC1, pDC]
+  - [cDC2, pDC]
+
+
+
+    # - ASDC
+    # - Cycling-LP
+    # - Early-Ery
+    # - Endothelia
+    # - GP
+    # - Granulocyte
+    # - HSC
+    # - Hepatocyte
+    # - ILCP
+    # - IM-B
+    # - Kupffer
+    # - LMPP
+    # - LP
+    # - Large-PreB
+    # - Late-Ery
+    # - MDP
+    # - MEMP-Ery
+    # - MEMP-MK
+    # - MEMP-Mast-Ery
+    # - MEMP-t
+    # - MEMP
+    # - MEP
+    # - MK
+    # - Mast
+    # - MastP-t
+    # - MastP
+    # - Monocyte
+    # - NK
+    # - PreProB
+    # - ProB-1
+    # - ProB-2
+    # - Small-PreB
+    # - T
+    # - cDC1
+    # - cDC2
+    # - pDC
+
+
 blacklist_expand_width: 1057
 
 folds:
@@ -1069,3 +1262,22 @@ peaks:
   max_peaks: 300000
   pval_thresh: 0.01
   smooth_window: 150
+
+modisco:
+  num_matches: 10
+  num_seqlets: 1000000
+  window: 500
+
+finemo:
+  # `cwm_trim_threshold`
+  # The threshold to determine motif start and end positions within the full CWMs. Default is 0.3.
+  cwm_trim_threshold: 0.3
+  # `alpha`
+  # The L1 regularization weight. Default is 0.7.
+  alpha: 0.7
+  # `batch_size`
+  # The batch size used for optimization. Default is 2000.
+  batch_size: 2000
+  # `extra_args`
+  # Variable to pass an extra arguments. E.g. "-J/--compile" enables JIT compilation for faster execution.
+  extra_args: "-J"
