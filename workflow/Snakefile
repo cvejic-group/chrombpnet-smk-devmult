@@ -68,12 +68,16 @@ rule all:
         expand("results/chrombpnet_nobias/pretrained_bias/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.tf_set_2.{track_type}",
                sample=[s for s in matched_sample_ids if "PCW" not in s],
                score_type="counts", track_type=["bed.bgz", "bedpe.gz"]),
-        expand("results/chrombpnet_nobias/pretrained_bias/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.top_tf.{track_type}",
+        expand("results/chrombpnet_nobias/{model_type}/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.top_tf.{track_type}",
                sample=[s for s in matched_sample_ids if "HSC_PCW" in s],
-               score_type="counts", track_type=["bed.bgz", "bedpe.gz"]),
-        expand("results/chrombpnet_nobias/pretrained_bias/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.tf_set_2.{track_type}",
+               score_type="counts",
+               model_type=["pretrained_bias", "hsc_unified"],
+               track_type=["bed.bgz", "bedpe.gz"]),
+        expand("results/chrombpnet_nobias/{model_type}/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.tf_set_2.{track_type}",
                sample=[s for s in matched_sample_ids if "HSC_PCW" in s],
-               score_type="counts", track_type=["bed.bgz", "bedpe.gz"]),
+               score_type="counts",
+               model_type=["pretrained_bias", "hsc_unified"],
+               track_type=["bed.bgz", "bedpe.gz"]),
         expand("results/chrombpnet_nobias/pretrained_bias/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.tf_set_2.{track_type}",
                sample=[s for s in matched_sample_ids if any(x in s for x in LIST_PREPROB)],
                score_type="counts", track_type=["bed.bgz", "bedpe.gz"]),
@@ -88,6 +92,13 @@ rule all:
                sample=[s for s in samples_sce2g],
                score_type="counts"),
         expand("results/chrombpnet_nobias/hsc_unified/{sample}/mean/modisco/{score_type}_scores/df_motifs.csv.gz",
+               sample=[s for s in matched_sample_ids if "HSC_PCW" in s],
+               score_type="counts"),
+        expand("results/reports/compare_seqlets/hsc_unified/report_seqlet_overlaps.{sample1}.{sample2}.counts_scores.html",
+        zip,
+               sample1=[s[0] for s in config['sample_contrast'] if "HSC_PCW" in s[0] and "HSC_PCW" in s[1]],
+               sample2=[s[1] for s in config['sample_contrast'] if "HSC_PCW" in s[0] and "HSC_PCW" in s[1]]),
+        expand("results/reports/summarize_seqlets/hsc_unified/report_seqlet_summary.{sample}.{score_type}_scores.html",
                sample=[s for s in matched_sample_ids if "HSC_PCW" in s],
                score_type="counts"),
         # expand("results/chrombpnet_nobias/pretrained_bias/{sample}/mean/finemo/{score_type}_scores/{sample}_mean.{score_type}_scores.report.pdf",
@@ -874,6 +885,29 @@ rule modisco_bed_mean_pretrained_raw:
             bgzip -c > {output.bed}
         """
 
+rule modisco_bed_mean_hsc_unified_raw:
+    input:
+        bed_pk="resources/peaks/unified/HSC.unified.bed",
+        h5="results/chrombpnet_nobias/hsc_unified/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.modisco.h5"
+    output:
+        bed="results/chrombpnet_nobias/hsc_unified/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.raw.bed.gz"
+    params:
+        chrom="*"
+    wildcard_constraints:
+        score_type="(counts|profile)"
+    threads: 1
+    resources:
+        mem_mb=24000
+    conda: "modiscolite_2_2_1"
+    shell:
+        """
+        modisco seqlet-bed \\
+            -i {input.h5} \\
+            -p {input.bed_pk} \\
+            -c '{params.chrom}' |\\
+            bgzip -c > {output.bed}
+        """
+
 rule modisco_bedpe_mean_pretrained_raw:
     input:
         bed_pk="resources/peaks/{sample}/{sample}.no_blacklist.bed",
@@ -888,12 +922,47 @@ rule modisco_bedpe_mean_pretrained_raw:
     conda: "modiscolite_2_2_1"
     script: "scripts/modisco_seqlets_to_bedpe.py"
 
+rule modisco_bedpe_mean_hsc_unified_raw:
+    input:
+        bed_pk="resources/peaks/unified/HSC.unified.bed",
+        h5="results/chrombpnet_nobias/hsc_unified/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.modisco.h5"
+    output:
+        bedpe="results/chrombpnet_nobias/hsc_unified/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.raw.bedpe.gz"
+    params:
+        width=config['modisco']['window']
+    wildcard_constraints:
+        score_type="(counts|profile)"
+    threads: 1
+    conda: "modiscolite_2_2_1"
+    script: "scripts/modisco_seqlets_to_bedpe.py"
+
 rule modisco_bed_mean_pretrained_sorted:
     input:
         bed="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.raw.bed.gz"
     output:
         bed="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.sorted.bed.gz",
         tbi="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.sorted.bed.gz.tbi"
+    wildcard_constraints:
+        score_type="(counts|profile)"
+    threads: 4
+    resources:
+        mem_mb=4000
+    conda: "modiscolite_2_2_1"
+    shell:
+        """
+        bgzip -@ {threads} -cd {input.bed} |\\
+            grep -vE '^(track name|$)' |\\
+            sort -k1,1 -k2,2n -k3,3n |\\
+            bgzip -@ {threads} -c > {output.bed}
+        tabix {output.bed}
+        """
+
+rule modisco_bed_mean_hsc_unified_sorted:
+    input:
+        bed="results/chrombpnet_nobias/hsc_unified/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.raw.bed.gz"
+    output:
+        bed="results/chrombpnet_nobias/hsc_unified/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.sorted.bed.gz",
+        tbi="results/chrombpnet_nobias/hsc_unified/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.sorted.bed.gz.tbi"
     wildcard_constraints:
         score_type="(counts|profile)"
     threads: 4
@@ -928,17 +997,37 @@ rule modisco_bedpe_mean_pretrained_sorted:
             bgzip -@ {threads} -c > {output.bedpe}
         """
 
+rule modisco_bedpe_mean_hsc_unified_sorted:
+    input:
+        bedpe="results/chrombpnet_nobias/hsc_unified/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.raw.bedpe.gz"
+    output:
+        bedpe="results/chrombpnet_nobias/hsc_unified/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.sorted.bedpe.gz"
+    wildcard_constraints:
+        score_type="(counts|profile)"
+    threads: 4
+    resources:
+        mem_mb=4000
+    conda: "modiscolite_2_2_1"
+    shell:
+        """
+        bgzip -@ {threads} -cd {input.bedpe} |\\
+            grep -vE '^(track name|$)' |\\
+            sort -k1,1 -k2,2n -k3,3n -k5,5n -k6,6n |\\
+            bgzip -@ {threads} -c > {output.bedpe}
+        """
+
 rule modisco_motifs_mean_annot_bed_top:
     input:
-        csv="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/modisco/{score_type}_scores/df_motifs.csv.gz",
-        bed="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.sorted.bed.gz"
+        csv="results/chrombpnet_nobias/{model_type}/{sample}/mean/modisco/{score_type}_scores/df_motifs.csv.gz",
+        bed="results/chrombpnet_nobias/{model_type}/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.sorted.bed.gz"
     output:
-        bed="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.top_tf.bed.bgz",
-        tbi="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.top_tf.bed.bgz.tbi"
+        bed="results/chrombpnet_nobias/{model_type}/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.top_tf.bed.bgz",
+        tbi="results/chrombpnet_nobias/{model_type}/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.top_tf.bed.bgz.tbi"
     params:
         json=config['meme']['json']
     wildcard_constraints:
-        score_type="(counts|profile)"
+        score_type="(counts|profile)",
+        model_type="(pretrained_bias|hsc_unified)"
     threads: 1
     resources:
         mem_mb=4000
@@ -947,14 +1036,15 @@ rule modisco_motifs_mean_annot_bed_top:
 
 rule modisco_motifs_mean_annot_bedpe_top:
     input:
-        csv="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/modisco/{score_type}_scores/df_motifs.csv.gz",
-        bedpe="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.sorted.bedpe.gz"
+        csv="results/chrombpnet_nobias/{model_type}/{sample}/mean/modisco/{score_type}_scores/df_motifs.csv.gz",
+        bedpe="results/chrombpnet_nobias/{model_type}/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.sorted.bedpe.gz"
     output:
-        bedpe="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.top_tf.bedpe.gz"
+        bedpe="results/chrombpnet_nobias/{model_type}/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.top_tf.bedpe.gz"
     params:
         json=config['meme']['json']
     wildcard_constraints:
-        score_type="(counts|profile)"
+        score_type="(counts|profile)",
+        model_type="(pretrained_bias|hsc_unified)"
     threads: 1
     resources:
         mem_mb=4000
@@ -978,15 +1068,16 @@ rule bedpe_top_targets_sce2g:
 
 rule modisco_motifs_mean_annot_bed_tf_set_2:
     input:
-        csv="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/modisco/{score_type}_scores/df_motifs.csv.gz",
-        bed="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.sorted.bed.gz"
+        csv="results/chrombpnet_nobias/{model_type}/{sample}/mean/modisco/{score_type}_scores/df_motifs.csv.gz",
+        bed="results/chrombpnet_nobias/{model_type}/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.sorted.bed.gz"
     output:
-        bed="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.tf_set_2.bed.bgz",
-        tbi="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.tf_set_2.bed.bgz.tbi"
+        bed="results/chrombpnet_nobias/{model_type}/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.tf_set_2.bed.bgz",
+        tbi="results/chrombpnet_nobias/{model_type}/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.tf_set_2.bed.bgz.tbi"
     params:
         json=config['meme']['json']
     wildcard_constraints:
-        score_type="(counts|profile)"
+        score_type="(counts|profile)",
+        model_type="(pretrained_bias|hsc_unified)"
     threads: 1
     resources:
         mem_mb=4000
@@ -995,14 +1086,15 @@ rule modisco_motifs_mean_annot_bed_tf_set_2:
 
 rule modisco_motifs_mean_annot_bedpe_tf_set_2:
     input:
-        csv="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/modisco/{score_type}_scores/df_motifs.csv.gz",
-        bedpe="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.sorted.bedpe.gz"
+        csv="results/chrombpnet_nobias/{model_type}/{sample}/mean/modisco/{score_type}_scores/df_motifs.csv.gz",
+        bedpe="results/chrombpnet_nobias/{model_type}/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.sorted.bedpe.gz"
     output:
-        bedpe="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.tf_set_2.bedpe.gz"
+        bedpe="results/chrombpnet_nobias/{model_type}/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.tf_set_2.bedpe.gz"
     params:
         json=config['meme']['json']
     wildcard_constraints:
-        score_type="(counts|profile)"
+        score_type="(counts|profile)",
+        model_type="(pretrained_bias|hsc_unified)"
     threads: 1
     resources:
         mem_mb=4000
@@ -1030,12 +1122,45 @@ rule seqlet_overlaps_mean:
     conda: "envs/rmd_reports.yaml"
     script: "reports/report_seqlet_overlaps.Rmd"
 
+rule seqlet_overlaps_mean_unified:
+    input:
+        bedpe_1="results/chrombpnet_nobias/hsc_unified/{sample1}/mean/modisco/{sample1}_mean.{score_type}_scores.top_tf.bedpe.gz",
+        bedpe_2="results/chrombpnet_nobias/hsc_unified/{sample2}/mean/modisco/{sample2}_mean.{score_type}_scores.top_tf.bedpe.gz"
+    output:
+        html="results/reports/compare_seqlets/hsc_unified/report_seqlet_overlaps.{sample1}.{sample2}.{score_type}_scores.html"
+    params:
+        group_1="{sample1}",
+        group_2="{sample2}"
+    wildcard_constraints:
+        score_type="(counts|profile)"
+    threads: 16
+    resources:
+        mem_mb=64000
+    conda: "envs/rmd_reports.yaml"
+    script: "reports/report_seqlet_overlaps.Rmd"
+
 rule seqlet_summary_mean:
     input:
         bedpe="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.top_tf.bedpe.gz",
         bed_pk="resources/peaks/{sample}/{sample}.no_blacklist.bed"
     output:
         html="results/reports/summarize_seqlets/mean/report_seqlet_summary.{sample}.{score_type}_scores.html"
+    params:
+        sample="{sample}"
+    wildcard_constraints:
+        score_type="(counts|profile)"
+    threads: 1
+    resources:
+        mem_mb=6000
+    conda: "envs/rmd_reports.yaml"
+    script: "reports/report_seqlet_summary.Rmd"
+
+rule seqlet_summary_mean_unified:
+    input:
+        bedpe="results/chrombpnet_nobias/hsc_unified/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.top_tf.bedpe.gz",
+        bed_pk="resources/peaks/unified/HSC.unified.bed"
+    output:
+        html="results/reports/summarize_seqlets/hsc_unified/report_seqlet_summary.{sample}.{score_type}_scores.html"
     params:
         sample="{sample}"
     wildcard_constraints:

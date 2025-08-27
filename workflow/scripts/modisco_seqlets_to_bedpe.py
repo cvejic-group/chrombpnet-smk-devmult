@@ -55,7 +55,7 @@ with gzip.open(BEDPE_OUT, 'wt') as f_out:
                     seqlet_score = np.sum(contrib_score**2)
     
                     # strand
-                    target_strand = peak_row[5]
+                    target_strand = '*' if peak_row[5] == '.' else peak_row[5]
                     seqlet_strand = '-' if bool(datasets['seqlets']['is_revcomp'][idx]) is True else '+'
     
                     row_vars = [chrom, seqlet_start, seqlet_end, 
