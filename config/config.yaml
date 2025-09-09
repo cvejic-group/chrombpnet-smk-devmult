@@ -1122,6 +1122,10 @@ peak_gene_link:
     cDC2: /work/DevM_analysis/data/E2G/scE2G/cDC2_scE2G.enh2gene.bedpe
     pDC: /work/DevM_analysis/data/E2G/scE2G/pDC_scE2G.enh2gene.bedpe
 
+modisco_cluster_set:
+  hsc_pcw:
+    HSC_PCW5: results/chrombpnet_nobias/hsc_unified/HSC_PCW5/mean/modisco/HSC_PCW5_mean.counts_scores.modisco.h5
+
 sample_contrast:
   - [HSC, LP]
   - [HSC, Cycling-LP]
