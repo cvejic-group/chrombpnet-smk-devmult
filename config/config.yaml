@@ -1069,6 +1069,58 @@ peak_bed:
   pDC_PCW9: /work/DevM_analysis/04.regulome/data/archr_48FL/PeakBED/PCW_celltype/pDC_PCW9.bed
 
 peak_gene_link:
+  glmmPG:
+    # by cell type
+    ASDC: /work/DevM_analysis/data/E2G/glmmPG/ASDC.glmmPG_FDR20.bedpe
+    Cycling-LP: /work/DevM_analysis/data/E2G/glmmPG/Cycling-LP.glmmPG_FDR20.bedpe
+    Early-Ery: /work/DevM_analysis/data/E2G/glmmPG/Early-Ery.glmmPG_FDR20.bedpe
+    #Endothelia: /work/DevM_analysis/data/E2G/glmmPG/Endothelia.glmmPG_FDR20.bedpe
+    GP: /work/DevM_analysis/data/E2G/glmmPG/GP.glmmPG_FDR20.bedpe
+    Granulocyte: /work/DevM_analysis/data/E2G/glmmPG/Granulocyte.glmmPG_FDR20.bedpe
+    HSC_PCW5: /work/DevM_analysis/data/E2G/glmmPG/HSC.glmmPG_FDR20.bedpe
+    HSC_PCW6: /work/DevM_analysis/data/E2G/glmmPG/HSC.glmmPG_FDR20.bedpe
+    HSC_PCW7: /work/DevM_analysis/data/E2G/glmmPG/HSC.glmmPG_FDR20.bedpe
+    HSC_PCW8: /work/DevM_analysis/data/E2G/glmmPG/HSC.glmmPG_FDR20.bedpe
+    HSC_PCW9: /work/DevM_analysis/data/E2G/glmmPG/HSC.glmmPG_FDR20.bedpe
+    HSC_PCW10: /work/DevM_analysis/data/E2G/glmmPG/HSC.glmmPG_FDR20.bedpe
+    HSC_PCW11: /work/DevM_analysis/data/E2G/glmmPG/HSC.glmmPG_FDR20.bedpe
+    HSC_PCW12: /work/DevM_analysis/data/E2G/glmmPG/HSC.glmmPG_FDR20.bedpe
+    HSC_PCW13: /work/DevM_analysis/data/E2G/glmmPG/HSC.glmmPG_FDR20.bedpe
+    HSC_PCW14: /work/DevM_analysis/data/E2G/glmmPG/HSC.glmmPG_FDR20.bedpe
+    HSC_PCW15: /work/DevM_analysis/data/E2G/glmmPG/HSC.glmmPG_FDR20.bedpe
+    HSC_PCW16: /work/DevM_analysis/data/E2G/glmmPG/HSC.glmmPG_FDR20.bedpe
+    HSC_PCW17: /work/DevM_analysis/data/E2G/glmmPG/HSC.glmmPG_FDR20.bedpe
+    HSC_PCW18: /work/DevM_analysis/data/E2G/glmmPG/HSC.glmmPG_FDR20.bedpe
+    HSC: /work/DevM_analysis/data/E2G/glmmPG/HSC.glmmPG_FDR20.bedpe
+    #Hepatocyte: /work/DevM_analysis/data/E2G/glmmPG/Hepatocyte.glmmPG_FDR20.bedpe
+    ILCP: /work/DevM_analysis/data/E2G/glmmPG/ILCP.glmmPG_FDR20.bedpe
+    IM-B: /work/DevM_analysis/data/E2G/glmmPG/IM-B.glmmPG_FDR20.bedpe
+    Kupffer: /work/DevM_analysis/data/E2G/glmmPG/Kupffer.glmmPG_FDR20.bedpe
+    LMPP: /work/DevM_analysis/data/E2G/glmmPG/LMPP.glmmPG_FDR20.bedpe
+    LP: /work/DevM_analysis/data/E2G/glmmPG/LP.glmmPG_FDR20.bedpe
+    Large-PreB: /work/DevM_analysis/data/E2G/glmmPG/Large-PreB.glmmPG_FDR20.bedpe
+    Late-Ery: /work/DevM_analysis/data/E2G/glmmPG/Late-Ery.glmmPG_FDR20.bedpe
+    MDP: /work/DevM_analysis/data/E2G/glmmPG/MDP.glmmPG_FDR20.bedpe
+    MEMP-Ery: /work/DevM_analysis/data/E2G/glmmPG/MEMP-Ery.glmmPG_FDR20.bedpe
+    MEMP-MK: /work/DevM_analysis/data/E2G/glmmPG/MEMP-MK.glmmPG_FDR20.bedpe
+    MEMP-Mast-Ery: /work/DevM_analysis/data/E2G/glmmPG/MEMP-Mast-Ery.glmmPG_FDR20.bedpe
+    MEMP-t: /work/DevM_analysis/data/E2G/glmmPG/MEMP-t.glmmPG_FDR20.bedpe
+    MEMP: /work/DevM_analysis/data/E2G/glmmPG/MEMP.glmmPG_FDR20.bedpe
+    MEP: /work/DevM_analysis/data/E2G/glmmPG/MEP.glmmPG_FDR20.bedpe
+    MK: /work/DevM_analysis/data/E2G/glmmPG/MK.glmmPG_FDR20.bedpe
+    Mast: /work/DevM_analysis/data/E2G/glmmPG/Mast.glmmPG_FDR20.bedpe
+    MastP-t: /work/DevM_analysis/data/E2G/glmmPG/MastP-t.glmmPG_FDR20.bedpe
+    MastP: /work/DevM_analysis/data/E2G/glmmPG/MastP.glmmPG_FDR20.bedpe
+    Monocyte: /work/DevM_analysis/data/E2G/glmmPG/Monocyte.glmmPG_FDR20.bedpe
+    NK: /work/DevM_analysis/data/E2G/glmmPG/NK.glmmPG_FDR20.bedpe
+    PreProB: /work/DevM_analysis/data/E2G/glmmPG/PreProB.glmmPG_FDR20.bedpe
+    ProB-1: /work/DevM_analysis/data/E2G/glmmPG/ProB-1.glmmPG_FDR20.bedpe
+    ProB-2: /work/DevM_analysis/data/E2G/glmmPG/ProB-2.glmmPG_FDR20.bedpe
+    Small-PreB: /work/DevM_analysis/data/E2G/glmmPG/Small-PreB.glmmPG_FDR20.bedpe
+    T: /work/DevM_analysis/data/E2G/glmmPG/T.glmmPG_FDR20.bedpe
+    cDC1: /work/DevM_analysis/data/E2G/glmmPG/cDC1.glmmPG_FDR20.bedpe
+    cDC2: /work/DevM_analysis/data/E2G/glmmPG/cDC2.glmmPG_FDR20.bedpe
+    pDC: /work/DevM_analysis/data/E2G/glmmPG/pDC.glmmPG_FDR20.bedpe
   scE2G:
     # by cell type
     ASDC: /work/DevM_analysis/data/E2G/scE2G/ASDC_scE2G.enh2gene.bedpe
@@ -1182,7 +1234,7 @@ sample_contrast:
   - [HSC_PCW16, HSC_PCW17]
   - [HSC_PCW16, HSC_PCW18]
   - [HSC_PCW17, HSC_PCW18]
-  
+
   - [HSC_PCW5, PreProB_PCW5]
   - [Cycling-LP, PreProB_PCW5]
   - [LMPP, PreProB_PCW5]

@@ -29,6 +29,10 @@ sce2g_bedpes = config['peak_gene_link']['scE2G']
 samples_sce2g = samples.keys() & sce2g_bedpes.keys()
 message(f"[INFO]   Found {len(samples_sce2g)} samples with matched scE2G links.")
 
+glmmpg_bedpes = config['peak_gene_link']['glmmPG']
+samples_glmmpg = samples.keys() & glmmpg_bedpes.keys()
+message(f"[INFO]   Found {len(samples_glmmpg)} samples with matched glmmPG links.")
+
 wildcard_constraints:
     sample="[^/.]+",
     bam_id="[^/]+",
@@ -91,6 +95,12 @@ rule all:
         expand("results/seqlet-target/scE2G/{sample}_seqlet_scE2G.{score_type}_scores.csv.gz",
                sample=[s for s in samples_sce2g],
                score_type="counts"),
+        expand("results/seqlet-target/glmmPG/{model_type}/{sample}_seqlet_glmmPG.{score_type}_scores.bedpe.gz",
+               sample=[s for s in samples_glmmpg],
+               score_type="counts", model_type="pretrained_bias"),
+        expand("results/seqlet-target/glmmPG/{model_type}/{sample}_seqlet_glmmPG.{score_type}_scores.bedpe.gz",
+               sample=[s for s in samples_glmmpg if "HSC_PCW" in s],
+               score_type="counts", model_type="hsc_unified"),
         expand("results/chrombpnet_nobias/hsc_unified/{sample}/mean/modisco/{score_type}_scores/df_motifs.csv.gz",
                sample=[s for s in matched_sample_ids if "HSC_PCW" in s],
                score_type="counts"),
@@ -1065,6 +1075,22 @@ rule bedpe_top_targets_sce2g:
         mem_mb=4000
     conda: "envs/plyranges.yaml"
     script: "scripts/bedpe_targets_sce2g.R"
+
+rule bedpe_top_targets_glmmpg:
+    input:
+        bedpe_seqlet="results/chrombpnet_nobias/{model_type}/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.top_tf.bedpe.gz",
+        bedpe_glmmpg=lambda wcs: config['peak_gene_link']['glmmPG'][wcs.sample]
+    output:
+        bedpe="results/seqlet-target/glmmPG/{model_type}/{sample}_seqlet_glmmPG.{score_type}_scores.bedpe.gz",
+        csv="results/seqlet-target/glmmPG/{model_type}/{sample}_seqlet_glmmPG.{score_type}_scores.csv.gz"
+    wildcard_constraints:
+        score_type="(counts|profile)",
+        model_type="(pretrained_bias|hsc_unified)"
+    threads: 1
+    resources:
+        mem_mb=4000
+    conda: "envs/plyranges.yaml"
+    script: "scripts/bedpe_targets_glmmPG.R"
 
 rule modisco_motifs_mean_annot_bed_tf_set_2:
     input:
