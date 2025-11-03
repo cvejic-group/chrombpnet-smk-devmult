@@ -1286,6 +1286,60 @@ sample_contrast:
   - [cDC2, pDC]
 
 
+seqlet_overlap_analysis:
+  celltypes:
+    - ASDC
+    - Cycling-LP
+    - Early-Ery
+    - Endothelia
+    - GP
+    - Granulocyte
+    - HSC
+    - Hepatocyte
+    - ILCP
+    - IM-B
+    - Kupffer
+    - LMPP
+    - LP
+    - Large-PreB
+    - Late-Ery
+    - MDP
+    - MEMP-Ery
+    - MEMP-MK
+    - MEMP-Mast-Ery
+    - MEMP-t
+    - MEMP
+    - MEP
+    - MK
+    - Mast
+    - MastP-t
+    - MastP
+    - Monocyte
+    - NK
+    - PreProB
+    - ProB-1
+    - ProB-2
+    - Small-PreB
+    - T
+    - cDC1
+    - cDC2
+    - pDC
+  hscs:
+    - HSC_PCW5
+    - HSC_PCW6
+    - HSC_PCW7
+    - HSC_PCW8
+    - HSC_PCW9
+    - HSC_PCW10
+    - HSC_PCW11
+    - HSC_PCW12
+    - HSC_PCW13
+    - HSC_PCW14
+    - HSC_PCW15
+    - HSC_PCW16
+    - HSC_PCW17
+    - HSC_PCW18
+
 
     # - ASDC
     # - Cycling-LP

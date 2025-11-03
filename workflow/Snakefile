@@ -2,6 +2,7 @@ configfile: "config/config.yaml"
 
 import os
 from sys import stderr
+import re
 
 # print to stderr
 def message(*args, **kwargs):
@@ -13,6 +14,7 @@ os.makedirs(config['tmp_dir'], exist_ok=True)
 # load sample data
 message("[INFO] Checking sample info...")
 samples = config['samples']
+samples_regex = "|".join(map(re.escape, samples.keys()))
 message(f"[INFO]   Found {len(samples.keys())} samples.")
 
 # load BED peak info
@@ -125,6 +127,8 @@ rule all:
         #expand("results/chrombpnet_nobias/pretrained_bias/{sample}/{fold_id}/evaluation/{sample}_{fold_id}._overall_report.pdf",
         #       fold_id=list(config['folds'].keys())[:3], 
         #       sample=[s for s in matched_sample_ids if "PCW" in s]),
+        "results/overlaps/chrombpnet_nobias/pretrained_bias/celltypes/counts/se_seqlets_celltypes.Rds",
+        #"results/overlaps/chrombpnet_nobias/hsc_unified/hscs/counts/se_seqlets_hscs.Rds"
 
 ################################################################################
 ## DOWNLOADING
@@ -740,7 +744,6 @@ rule modisco_motifs_mean_csv_hsc_unified:
     conda: "modiscolite_2_2_1"
     script: "scripts/modisco_html_to_csv.py"
 
-
 ################################################################################
 ## FiNeMo
 ################################################################################
@@ -1126,6 +1129,61 @@ rule modisco_motifs_mean_annot_bedpe_tf_set_2:
         mem_mb=4000
     conda: "envs/plyranges.yaml"
     script: "scripts/bedpe_annot_tf_set_2.R"
+
+
+################################################################################
+## Seqlet Overlap Analysis
+################################################################################
+
+def get_seqlet_intersect_samples(wcs):
+    if not wcs.sample_set in config['seqlet_overlap_analysis'].keys():
+        message(f"[Error] Sample set '{wcs.sample_set}' not found in 'seqlet_overlap_analysis' configuration!")
+        message(f"[Error] Available sample sets are:")
+        for k in config['seqlet_overlap_analysis'].keys():
+            message(f"[Error]   - '{k}'")
+        exit(1)
+    
+    sample_set = config['seqlet_overlap_analysis'][wcs.sample_set]
+
+    return expand("results/overlaps/chrombpnet_nobias/{model_type}/{sample_set}/{score_type}/intersect_{sample1}_{sample2}.Rds",
+                  model_type=wcs.model_type, sample_set=wcs.sample_set, score_type=wcs.score_type,
+                  sample1=sample_set, sample2=sample_set)
+
+rule intersect_sample_seqlets_pair:
+    input:
+        bedpe="results/chrombpnet_nobias/{model_type}/{sample1}/mean/modisco/{sample1}_mean.{score_type}_scores.top_tf.bedpe.gz",
+        bed="results/chrombpnet_nobias/{model_type}/{sample2}/mean/modisco/{sample2}_mean.{score_type}_scores.sorted.bed.gz"
+    output:
+        rds="results/overlaps/chrombpnet_nobias/{model_type}/{sample_set}/{score_type}/intersect_{sample1}_{sample2}.Rds"
+    params:
+        # make explict which wildcards get used by script
+        sample1="{sample1}",
+        sample2="{sample2}"
+    wildcard_constraints:
+        score_type="(counts|profile)",
+        model_type="(pretrained_bias|hsc_unified)",
+        sample1=samples_regex,
+        sample2=samples_regex
+    threads: 1
+    resources:
+        mem_mb=4000
+    conda: "envs/plyranges.yaml"
+    script: "scripts/intersect_sample_seqlets.R"
+
+
+rule aggregate_sample_seqlet_intersects:
+    input:
+        rdss=get_seqlet_intersect_samples
+    output:
+        rds="results/overlaps/chrombpnet_nobias/{model_type}/{sample_set}/{score_type}/se_seqlets_{sample_set}.Rds"
+    wildcard_constraints:
+        score_type="(counts|profile)",
+        model_type="(pretrained_bias|hsc_unified)"
+    threads: 1
+    resources:
+        mem_mb=16000
+    conda: "envs/plyranges.yaml"
+    script: "scripts/aggregate_sample_seqlet_intersects.R"
 
 ################################################################################
 ## Reports
