@@ -135,6 +135,9 @@ rule all:
         expand("results/chrombpnet_nobias/{model_type}/{sample}/mean/shap/{sample}_mean.{score_type}_scores.bw",
                sample=[s for s in matched_sample_ids if "HSC_PCW" in s],
                score_type="counts", model_type="hsc_unified"),
+        expand("results/chrombpnet_nobias/{model_type}/{sample}/mean/preds/{sample}_mean._{pred_type}.bw",
+               sample=[s for s in matched_sample_ids if "HSC_PCW" in s],
+               model_type="hsc_unified", pred_type=['chrombpnet_nobias', 'bias', 'chrombpnet']),
         
 
 ################################################################################
@@ -627,6 +630,136 @@ rule contribs_mean_bedgraph_to_bw:
 ## Prediction Tracks ##
 #######################
 
+rule preds_bw_nobias_fold_hsc_unified:
+    input:
+        fa=config['genome']['file'],
+        chrom_sizes=config['chrom_sizes']['file'],
+        bed_pk="resources/peaks/unified/HSC.unified.bed",
+        h5_nobias="results/chrombpnet_nobias/pretrained_bias/{sample}/{fold_id}/models/{sample}_{fold_id}._chrombpnet_nobias.h5"
+    output:
+        bw="results/chrombpnet_nobias/hsc_unified/{sample}/{fold_id}/preds/{sample}_{fold_id}._chrombpnet_nobias.bw"
+    params:
+        outdir="results/chrombpnet_nobias/hsc_unified/{sample}/{fold_id}/preds"
+    threads: 16
+    resources:
+        slurm_extra="'--gres=gpu:h100:1'"
+    conda: "chrombpnet_0_1_7"
+    shell:
+        """
+        mkdir -p {params.outdir}
+        export OMP_NUM_THREADS={threads}
+        export OPENBLAS_NUM_THREADS={threads}
+        chrombpnet pred_bw \\
+            -cmb {input.h5_nobias} \\
+            -g {input.fa} -c {input.chrom_sizes} \\
+            -r {input.bed_pk} \\
+            -op {params.outdir}/{wildcards.sample}_{wildcards.fold_id}.
+        """
+
+rule preds_bw_full_fold_hsc_unified:
+    input:
+        fa=config['genome']['file'],
+        chrom_sizes=config['chrom_sizes']['file'],
+        bed_pk="resources/peaks/unified/HSC.unified.bed",
+        h5_full="results/chrombpnet_nobias/pretrained_bias/{sample}/{fold_id}/models/{sample}_{fold_id}._chrombpnet.h5"
+    output:
+        bw="results/chrombpnet_nobias/hsc_unified/{sample}/{fold_id}/preds/{sample}_{fold_id}._chrombpnet.bw"
+    params:
+        outdir="results/chrombpnet_nobias/hsc_unified/{sample}/{fold_id}/preds"
+    threads: 16
+    resources:
+        slurm_extra="'--gres=gpu:h100:1'"
+    conda: "chrombpnet_0_1_7"
+    shell:
+        """
+        mkdir -p {params.outdir}
+        export OMP_NUM_THREADS={threads}
+        export OPENBLAS_NUM_THREADS={threads}
+        chrombpnet pred_bw \\
+            -cm {input.h5_full} \\
+            -g {input.fa} -c {input.chrom_sizes} \\
+            -r {input.bed_pk} \\
+            -op {params.outdir}/{wildcards.sample}_{wildcards.fold_id}.
+        """
+
+rule preds_bw_bias_fold_hsc_unified:
+    input:
+        fa=config['genome']['file'],
+        chrom_sizes=config['chrom_sizes']['file'],
+        bed_pk="resources/peaks/unified/HSC.unified.bed",
+        h5_bias="results/chrombpnet_nobias/pretrained_bias/{sample}/{fold_id}/models/{sample}_{fold_id}._bias_model_scaled.h5"
+    output:
+        bw="results/chrombpnet_nobias/hsc_unified/{sample}/{fold_id}/preds/{sample}_{fold_id}._bias.bw"
+    params:
+        outdir="results/chrombpnet_nobias/hsc_unified/{sample}/{fold_id}/preds"
+    threads: 16
+    resources:
+        slurm_extra="'--gres=gpu:h100:1'"
+    conda: "chrombpnet_0_1_7"
+    shell:
+        """
+        mkdir -p {params.outdir}
+        export OMP_NUM_THREADS={threads}
+        export OPENBLAS_NUM_THREADS={threads}
+        chrombpnet pred_bw \\
+            -cm {input.h5_bias} \\
+            -g {input.fa} -c {input.chrom_sizes} \\
+            -r {input.bed_pk} \\
+            -op {params.outdir}/{wildcards.sample}_{wildcards.fold_id}.
+        """
+
+rule preds_bw_to_sum_bedgraph:
+    input:
+        bws=expand("results/chrombpnet_nobias/{model_type}/{sample}/{fold_id}/preds/{sample}_{fold_id}._{pred_type}.bw",
+                   fold_id=list(config['folds'].keys()), allow_missing=True)
+    output:
+        bg=temp("results/chrombpnet_nobias/{model_type}/{sample}/mean/preds/{sample}_sum._{pred_type}.bedGraph")
+    wildcard_constraints:
+        model_type="(pretrained_bias|hsc_unified)",
+        pred_type="(bias|chrombpnet|chrombpnet_nobias)"
+    threads: 1
+    resources:
+        mem_mb=4000
+    conda: "envs/ucsc-bigwig.yaml"
+    shell:
+        """
+        bigWigMerge -threshold=-1000.0 {input.bws} {output.bg}
+        """
+
+rule preds_sum_bedgraph_to_mean:
+    input:
+        bg="results/chrombpnet_nobias/{model_type}/{sample}/mean/preds/{sample}_sum._{pred_type}.bedGraph"
+    output:
+        bg=temp("results/chrombpnet_nobias/{model_type}/{sample}/mean/preds/{sample}_mean._{pred_type}.bedGraph")
+    wildcard_constraints:
+        model_type="(pretrained_bias|hsc_unified)",
+        pred_type="(bias|chrombpnet|chrombpnet_nobias)"
+    threads: 1
+    resources:
+        mem_mb=4000
+    conda: "envs/ucsc-bigwig.yaml"
+    shell:
+        """
+        awk '{{print $1, $2, $3, $4/5}}' {input.bg} > {output.bg}
+        """
+
+rule preds_mean_bedgraph_to_bw:
+    input:
+        bg="results/chrombpnet_nobias/{model_type}/{sample}/mean/preds/{sample}_mean._{pred_type}.bedGraph",
+        chrom_sizes=config['chrom_sizes']['file']
+    output:
+        bw="results/chrombpnet_nobias/{model_type}/{sample}/mean/preds/{sample}_mean._{pred_type}.bw"
+    wildcard_constraints:
+        model_type="(pretrained_bias|hsc_unified)",
+        pred_type="(bias|chrombpnet|chrombpnet_nobias)"
+    threads: 1
+    resources:
+        mem_mb=4000
+    conda: "envs/ucsc-bigwig.yaml"
+    shell:
+        """
+        bedGraphToBigWig {input.bg} {input.chrom_sizes} {output.bw}
+        """
 
 
 ####################
