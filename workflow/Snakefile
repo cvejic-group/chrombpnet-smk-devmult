@@ -129,6 +129,13 @@ rule all:
         #       sample=[s for s in matched_sample_ids if "PCW" in s]),
         "results/overlaps/chrombpnet_nobias/pretrained_bias/celltypes/counts/se_seqlets_celltypes.Rds",
         #"results/overlaps/chrombpnet_nobias/hsc_unified/hscs/counts/se_seqlets_hscs.Rds"
+        expand("results/chrombpnet_nobias/{model_type}/{sample}/mean/shap/{sample}_mean.{score_type}_scores.bw",
+               sample=[s for s in matched_sample_ids if "PCW" not in s],
+               score_type="counts", model_type="pretrained_bias"),
+        expand("results/chrombpnet_nobias/{model_type}/{sample}/mean/shap/{sample}_mean.{score_type}_scores.bw",
+               sample=[s for s in matched_sample_ids if "HSC_PCW" in s],
+               score_type="counts", model_type="hsc_unified"),
+        
 
 ################################################################################
 ## DOWNLOADING
@@ -561,6 +568,70 @@ rule contribs_to_npz_mean_hsc_unified:
         mem_mb=64000
     conda: "chrombpnet_0_1_7"
     script: "scripts/mean_contribs_h5_to_npz.py"
+
+rule contribs_bw_to_sum_bedgraph:
+    input:
+        bws=expand("results/chrombpnet_nobias/{model_type}/{sample}/{fold_id}/shap/{sample}_{fold_id}.{score_type}_scores.bw",
+                   fold_id=list(config['folds'].keys()), allow_missing=True)
+    output:
+        bg=temp("results/chrombpnet_nobias/{model_type}/{sample}/mean/shap/{sample}_sum.{score_type}_scores.bedGraph")
+    wildcard_constraints:
+        score_type="(counts|profile)",
+        model_type="(pretrained_bias|hsc_unified)"
+    threads: 1
+    resources:
+        mem_mb=4000
+    conda: "envs/ucsc-bigwig.yaml"
+    shell:
+        """
+        bigWigMerge -threshold=-1000.0 {input.bws} {output.bg}
+        """
+
+rule contribs_sum_bedgraph_to_mean:
+    input:
+        bg="results/chrombpnet_nobias/{model_type}/{sample}/mean/shap/{sample}_sum.{score_type}_scores.bedGraph"
+    output:
+        bg=temp("results/chrombpnet_nobias/{model_type}/{sample}/mean/shap/{sample}_mean.{score_type}_scores.bedGraph")
+    wildcard_constraints:
+        score_type="(counts|profile)",
+        model_type="(pretrained_bias|hsc_unified)"
+    threads: 1
+    resources:
+        mem_mb=4000
+    conda: "envs/ucsc-bigwig.yaml"
+    shell:
+        """
+        awk '{{print $1, $2, $3, $4/5}}' {input.bg} > {output.bg}
+        """
+
+rule contribs_mean_bedgraph_to_bw:
+    input:
+        bg="results/chrombpnet_nobias/{model_type}/{sample}/mean/shap/{sample}_mean.{score_type}_scores.bedGraph",
+        chrom_sizes=config['chrom_sizes']['file']
+    output:
+        bw="results/chrombpnet_nobias/{model_type}/{sample}/mean/shap/{sample}_mean.{score_type}_scores.bw"
+    wildcard_constraints:
+        score_type="(counts|profile)",
+        model_type="(pretrained_bias|hsc_unified)"
+    threads: 1
+    resources:
+        mem_mb=4000
+    conda: "envs/ucsc-bigwig.yaml"
+    shell:
+        """
+        bedGraphToBigWig {input.bg} {input.chrom_sizes} {output.bw}
+        """
+
+
+#######################
+## Prediction Tracks ##
+#######################
+
+
+
+####################
+## Modisco Motifs ##
+####################
 
 rule modisco_motifs_fold_pretrained:
     input:
