@@ -116,6 +116,13 @@ rule all:
         # expand("results/chrombpnet_nobias/pretrained_bias/{sample}/mean/finemo/{score_type}_scores/{sample}_mean.{score_type}_scores.report.pdf",
         #        sample=[s for s in matched_sample_ids if "PCW" not in s],
         #        score_type="counts"),
+        expand("results/chrombpnet_nobias/hsc_unified/{sample}/mean/finemo/{score_type}_scores/{sample}_mean.{score_type}_scores.report.pdf",
+               sample=[s for s in matched_sample_ids if "HSC_PCW" in s],
+               score_type="counts"),
+        expand("results/chrombpnet_nobias/hsc_unified/{sample1}/mean/finemo_cross_check/{score_type}_scores/{sample2}/{sample1}_mean.{score_type}_scores.{sample2}_motifs.report.pdf",
+               sample1=[s for s in matched_sample_ids if "HSC_PCW" in s],
+               sample2=["HSC_PCW5", "HSC_PCW8", "HSC_PCW14"],
+               score_type="counts"),
         ## cell types (custom bias)
         #expand("results/chrombpnet_nobias/{sample}/{fold_id}/evaluation/{sample}_{fold_id}._overall_report.pdf",
         #       fold_id='fold_0', #config['folds'].keys(), 
@@ -702,7 +709,7 @@ rule preds_bw_bias_fold_hsc_unified:
         export OMP_NUM_THREADS={threads}
         export OPENBLAS_NUM_THREADS={threads}
         chrombpnet pred_bw \\
-            -cm {input.h5_bias} \\
+            -bm {input.h5_bias} \\
             -g {input.fa} -c {input.chrom_sizes} \\
             -r {input.bed_pk} \\
             -op {params.outdir}/{wildcards.sample}_{wildcards.fold_id}.
@@ -954,11 +961,12 @@ rule modisco_motifs_mean_csv_hsc_unified:
 
 rule finemo_extract_regions_mean:
     input:
-        h5="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/shap/{sample}_mean.{score_type}_scores.h5"
+        h5="results/chrombpnet_nobias/{model_type}/{sample}/mean/shap/{sample}_mean.{score_type}_scores.h5"
     output:
-        npz="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/finemo/{sample}_mean.{score_type}_scores.npz"
+        npz="results/chrombpnet_nobias/{model_type}/{sample}/mean/finemo/{sample}_mean.{score_type}_scores.npz"
     wildcard_constraints:
-        score_type="(counts|profile)"
+        score_type="(counts|profile)",
+        model_type="(pretrained_bias|hsc_unified)"
     threads: 32
     resources:
         slurm_extra="'--gres=gpu:h100:1'"
@@ -983,6 +991,42 @@ rule finemo_call_hits_mean:
         json="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/finemo/{score_type}_scores/parameters.json"
     params:
         outdir="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/finemo/{score_type}_scores",
+        threshold=config['finemo']['cwm_trim_threshold'],
+        alpha=config['finemo']['alpha'],
+        batch=config['finemo']['batch_size'],
+        args=config['finemo']['extra_args']
+    wildcard_constraints:
+        score_type="(counts|profile)"
+    threads: 32
+    resources:
+        slurm_extra="'--gres=gpu:h100:1'"
+    conda: "finemo_0_25"
+    shell:
+        """
+        finemo call-hits \\
+            -r {input.npz} \\
+            -m {input.h5} \\
+            -p {input.bed_pk} \\
+            -o {params.outdir} \\
+            -t {params.threshold} \\
+            -a {params.alpha} \\
+            -b {params.batch} \\
+            {params.args}
+        """
+
+rule finemo_call_hits_mean_hsc_unified:
+    input:
+        npz="results/chrombpnet_nobias/hsc_unified/{sample}/mean/finemo/{sample}_mean.{score_type}_scores.npz",
+        h5="results/chrombpnet_nobias/hsc_unified/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.modisco.h5",
+        bed_pk="resources/peaks/unified/HSC.unified.bed"
+    output:
+        bed_hits="results/chrombpnet_nobias/hsc_unified/{sample}/mean/finemo/{score_type}_scores/hits.bed",
+        tsv_hits="results/chrombpnet_nobias/hsc_unified/{sample}/mean/finemo/{score_type}_scores/hits.tsv",
+        tsv_hits_uniq="results/chrombpnet_nobias/hsc_unified/{sample}/mean/finemo/{score_type}_scores/hits_unique.tsv",
+        tsv_qc="results/chrombpnet_nobias/hsc_unified/{sample}/mean/finemo/{score_type}_scores/peaks_qc.tsv",
+        json="results/chrombpnet_nobias/hsc_unified/{sample}/mean/finemo/{score_type}_scores/parameters.json"
+    params:
+        outdir="results/chrombpnet_nobias/hsc_unified/{sample}/mean/finemo/{score_type}_scores",
         threshold=config['finemo']['cwm_trim_threshold'],
         alpha=config['finemo']['alpha'],
         batch=config['finemo']['batch_size'],
@@ -1034,16 +1078,129 @@ rule finemo_report_mean:
             -t {params.threshold}
         """
 
+rule finemo_report_mean_hsc_unified:
+    input:
+        npz="results/chrombpnet_nobias/hsc_unified/{sample}/mean/finemo/{sample}_mean.{score_type}_scores.npz",
+        tsv_hits="results/chrombpnet_nobias/hsc_unified/{sample}/mean/finemo/{score_type}_scores/hits.tsv",
+        h5="results/chrombpnet_nobias/hsc_unified/{sample}/mean/modisco/{sample}_mean.{score_type}_scores.modisco.h5",
+        bed_pk="resources/peaks/unified/HSC.unified.bed"
+    output:
+        html="results/chrombpnet_nobias/hsc_unified/{sample}/mean/finemo/{score_type}_scores/report.html"
+    params:
+        outdir="results/chrombpnet_nobias/hsc_unified/{sample}/mean/finemo/{score_type}_scores",
+        threshold=config['finemo']['cwm_trim_threshold'],
+        width=config['modisco']['window']
+    wildcard_constraints:
+        score_type="(counts|profile)"
+    threads: 16
+    conda: "finemo_0_25"
+    shell:
+        """
+        finemo report \\
+            -r {input.npz} \\
+            -H {input.tsv_hits} \\
+            -m {input.h5} \\
+            -p {input.bed_pk} \\
+            -o {params.outdir} \\
+            -W {params.width} \\
+            -t {params.threshold}
+        """
+
 rule finemo_report_to_pdf:
     input:
-        html="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/finemo/{score_type}_scores/report.html"
+        html="results/chrombpnet_nobias/{model_type}/{sample}/mean/finemo/{score_type}_scores/report.html"
     output:
-        pdf="results/chrombpnet_nobias/pretrained_bias/{sample}/mean/finemo/{score_type}_scores/{sample}_mean.{score_type}_scores.report.pdf"
+        pdf="results/chrombpnet_nobias/{model_type}/{sample}/mean/finemo/{score_type}_scores/{sample}_mean.{score_type}_scores.report.pdf"
     params:
         width=640,
         height=1280
     wildcard_constraints:
+        score_type="(counts|profile)",
+        model_type="(pretrained_bias|hsc_unified)"
+    threads: 1
+    conda: "chrombpnet_0_1_7"
+    script: "scripts/finemo_html_to_pdf.py"
+
+################################################################################
+## FiNeMo Cross-Check
+################################################################################
+
+
+rule finemo_call_hits_mean_hsc_unified_cross_check:
+    input:
+        npz="results/chrombpnet_nobias/hsc_unified/{sample1}/mean/finemo/{sample1}_mean.{score_type}_scores.npz",
+        h5="results/chrombpnet_nobias/hsc_unified/{sample2}/mean/modisco/{sample2}_mean.{score_type}_scores.modisco.h5",
+        bed_pk="resources/peaks/unified/HSC.unified.bed"
+    output:
+        bed_hits="results/chrombpnet_nobias/hsc_unified/{sample1}/mean/finemo_cross_check/{score_type}_scores/{sample2}/hits.bed",
+        tsv_hits="results/chrombpnet_nobias/hsc_unified/{sample1}/mean/finemo_cross_check/{score_type}_scores/{sample2}/hits.tsv",
+        tsv_hits_uniq="results/chrombpnet_nobias/hsc_unified/{sample1}/mean/finemo_cross_check/{score_type}_scores/{sample2}/hits_unique.tsv",
+        tsv_qc="results/chrombpnet_nobias/hsc_unified/{sample1}/mean/finemo_cross_check/{score_type}_scores/{sample2}/peaks_qc.tsv",
+        json="results/chrombpnet_nobias/hsc_unified/{sample1}/mean/finemo_cross_check/{score_type}_scores/{sample2}/parameters.json"
+    params:
+        outdir="results/chrombpnet_nobias/hsc_unified/{sample1}/mean/finemo_cross_check/{score_type}_scores/{sample2}",
+        threshold=config['finemo']['cwm_trim_threshold'],
+        alpha=config['finemo']['alpha'],
+        batch=config['finemo']['batch_size'],
+        args=config['finemo']['extra_args']
+    wildcard_constraints:
         score_type="(counts|profile)"
+    threads: 32
+    resources:
+        slurm_extra="'--gres=gpu:h100:1'"
+    conda: "finemo_0_25"
+    shell:
+        """
+        finemo call-hits \\
+            -r {input.npz} \\
+            -m {input.h5} \\
+            -p {input.bed_pk} \\
+            -o {params.outdir} \\
+            -t {params.threshold} \\
+            -a {params.alpha} \\
+            -b {params.batch} \\
+            {params.args}
+        """
+
+rule finemo_report_mean_hsc_unified_cross_check:
+    input:
+        npz="results/chrombpnet_nobias/hsc_unified/{sample1}/mean/finemo/{sample1}_mean.{score_type}_scores.npz",
+        tsv_hits="results/chrombpnet_nobias/hsc_unified/{sample1}/mean/finemo_cross_check/{score_type}_scores/{sample2}/hits.tsv",
+        h5="results/chrombpnet_nobias/hsc_unified/{sample2}/mean/modisco/{sample2}_mean.{score_type}_scores.modisco.h5",
+        bed_pk="resources/peaks/unified/HSC.unified.bed"
+    output:
+        html="results/chrombpnet_nobias/hsc_unified/{sample1}/mean/finemo_cross_check/{score_type}_scores/{sample2}/report.html"
+    params:
+        outdir="results/chrombpnet_nobias/hsc_unified/{sample1}/mean/finemo_cross_check/{score_type}_scores/{sample2}",
+        threshold=config['finemo']['cwm_trim_threshold'],
+        width=config['modisco']['window']
+    wildcard_constraints:
+        score_type="(counts|profile)"
+    threads: 16
+    conda: "finemo_0_25"
+    shell:
+        """
+        finemo report \\
+            -r {input.npz} \\
+            -H {input.tsv_hits} \\
+            -m {input.h5} \\
+            -p {input.bed_pk} \\
+            -o {params.outdir} \\
+            -W {params.width} \\
+            -t {params.threshold}
+        """
+
+rule finemo_report_to_pdf_cross_check:
+    input:
+        html="results/chrombpnet_nobias/{model_type}/{sample1}/mean/finemo_cross_check/{score_type}_scores/{sample2}/report.html"
+    output:
+        pdf="results/chrombpnet_nobias/{model_type}/{sample1}/mean/finemo_cross_check/{score_type}_scores/{sample2}/{sample1}_mean.{score_type}_scores.{sample2}_motifs.report.pdf"
+    params:
+        width=640,
+        height=1280
+    wildcard_constraints:
+        score_type="(counts|profile)",
+        model_type="(pretrained_bias|hsc_unified)"
     threads: 1
     conda: "chrombpnet_0_1_7"
     script: "scripts/finemo_html_to_pdf.py"
