@@ -1,0 +1,11 @@
+name: smk_8_27
+channels:
+  - conda-forge
+  - bioconda
+  - nodefaults
+dependencies:
+  - snakemake-executor-plugin-cluster-generic
+  - snakemake-executor-plugin-slurm
+  - snakemake-interface-executor-plugins
+  - snakemake=8.27
+prefix: /work/aaa/miniforge3/envs/smk_8_27
