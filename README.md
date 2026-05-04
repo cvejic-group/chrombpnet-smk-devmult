@@ -1,3 +1,5 @@
+[![DOI](https://zenodo.org/badge/1003459024.svg)](https://doi.org/10.5281/zenodo.20024504)
+
 # chrombpnet-smk
 This is a Snakemake pipeline for running ChromBPNet, TF-MoDiScO, and Fi-NeMo on pseudobulked snATAC-seq data.
 
