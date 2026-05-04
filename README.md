@@ -17,6 +17,40 @@ defines what outputs will be generated.
 - standard ChromBPNet, TF-MoDiScO, and Fi-NeMo outputs
 - additional BED, BEDPE, and BigWig files representing the putative footprints and contribution scores
 
+## Pipeline Setup
+In practice, the pipeline used a mixture of Snakemake-managed Conda environments and user-managed Conda environments.
+The user-managed Conda environments are documented in the `workflow/envs` folder, with the **".full"** file suffix,
+and capture all software in those environments. These can only be replicated on Linux environments:
+
+```bash
+## chrombpnet_0_1_7
+conda env create -n chrombpnet_0_1_7 -f workflow/envs/chrombpnet_0_1_7.full.yaml
+
+## finemo_0_25
+conda env create -n finemo_0_25 -f workflow/envs/finemo_0_25.full.yaml
+
+## modiscolite_2_2_1
+conda env create -n modiscolite_2_2_1 -f workflow/envs/modiscolite_2_2_1.full.yaml
+```
+
+Furthermore, the **modiscolite_2_2_1** environment included patching to the `modiscolite` module, which is provided in `workflow/envs/modiscolite_2.1.1.patch`. To apply this patch, it should be run from the `lib/python3.10/site-packages/` directory. E.g.,
+
+```bash
+## move to the env directory
+pushd ${CONDA_PREFIX}/envs/modiscolite_2_2_1/lib/python3.10/site-packages
+  ## check first
+  git apply --stat --check /path/to/chrombpnet-smk-devmult/workflow/envs/modiscolite_2.1.1.patch
+  # modiscolite/io.py         |    4 ++--
+  # modiscolite/bed_writer.py |    4 ++--
+  # 2 files changed, 4 insertions(+), 4 deletions(-)
+
+  ## if looks like above, then apply
+  git apply /path/to/chrombpnet-smk-devmult/workflow/envs/modiscolite_2.1.1.patch
+
+## change back to original directory
+popd
+```
+
 ## Running the Pipeline
 The pipeline has been previously run with Snakemake v8.27 in SLURM-based mode.
 It is expected to run with Conda+Mamba (Miniforge installation).

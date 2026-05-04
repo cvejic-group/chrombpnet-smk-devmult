@@ -1,0 +1,39 @@
+diff --git a/modiscolite/bed_writer.py b/modiscolite/bed_writer.py
+index b03a581..9c940da 100644
+--- a/modiscolite/bed_writer.py
++++ b/modiscolite/bed_writer.py
+@@ -191,10 +191,10 @@ class BEDTrack:
+ 	def __init__(
+ 		self,
+ 		track_line: Optional[BEDTrackLine] = None,
+-		rows: List[BEDRow] = []
++		rows: Optional[List[BEDRow]] = None
+ 	) -> None:
+ 		self.track_line = track_line
+-		self.rows = rows
++		self.rows = rows if rows is not None else []
+ 
+ 
+ 	def add_row(self, row: BEDRow) -> None:
+diff --git a/modiscolite/io.py b/modiscolite/io.py
+index 02dbcfd..92b2073 100644
+--- a/modiscolite/io.py
++++ b/modiscolite/io.py
+@@ -325,7 +325,7 @@ def write_bed_from_h5(modisco_results_filepath: os.PathLike, peaks_filepath: os.
+ 					track_line=bed_writer.BEDTrackLine(
+ 						arguments=OrderedDict([
+ 							('name', pattern_name),
+-							('description', f"TF-MoDISco pattern '{pattern_name}' on the positive strand.")
++							('description', f"TF-MoDISco pattern '{contribution_dir}_patterns.{pattern_name}' on the positive strand.")
+ 						])
+ 					)
+ 				)
+@@ -334,7 +334,7 @@ def write_bed_from_h5(modisco_results_filepath: os.PathLike, peaks_filepath: os.
+ 
+ 				# Process each seqlet within the pattern.
+ 				for idx in range(datasets['seqlets']['start'].shape[0]):
+-					seqlet_name = f'{pattern_name}.{idx}'
++					seqlet_name = f'{contribution_dir}_patterns.{pattern_name}.{idx}'
+ 
+ 					row_num = datasets['seqlets']['example_idx'][idx]
+ 					peak_row = peak_rows_filtered[row_num].split('\t')
