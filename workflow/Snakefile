@@ -123,6 +123,10 @@ rule all:
                sample1=[s for s in matched_sample_ids if "HSC_PCW" in s],
                sample2=["HSC_PCW5", "HSC_PCW8", "HSC_PCW14"],
                score_type="counts"),
+        expand("results/chrombpnet_nobias/hsc_unified/{sample1}/mean/finemo_cross_check/{score_type}_scores/{sample2}/hits.top_tf.bed.bgz",
+               sample1=[s for s in matched_sample_ids if "HSC_PCW" in s],
+               sample2=["HSC_PCW5", "HSC_PCW8", "HSC_PCW14"],
+               score_type="counts"),
         ## cell types (custom bias)
         #expand("results/chrombpnet_nobias/{sample}/{fold_id}/evaluation/{sample}_{fold_id}._overall_report.pdf",
         #       fold_id='fold_0', #config['folds'].keys(), 
@@ -1491,6 +1495,43 @@ rule modisco_motifs_mean_annot_bedpe_tf_set_2:
     conda: "envs/plyranges.yaml"
     script: "scripts/bedpe_annot_tf_set_2.R"
 
+rule finemo_cc_mean_hsc_unified_bed_sorted:
+    input:
+        bed="results/chrombpnet_nobias/hsc_unified/{sample1}/mean/finemo_cross_check/{score_type}_scores/{sample2}/hits.bed"
+    output:
+        bed="results/chrombpnet_nobias/hsc_unified/{sample1}/mean/finemo_cross_check/{score_type}_scores/{sample2}/hits.sorted.bed.gz",
+        tbi="results/chrombpnet_nobias/hsc_unified/{sample1}/mean/finemo_cross_check/{score_type}_scores/{sample2}/hits.sorted.bed.gz.tbi"
+    wildcard_constraints:
+        score_type="(counts|profile)"
+    threads: 4
+    resources:
+        mem_mb=4000
+    conda: "modiscolite_2_2_1"
+    shell:
+        """
+        cat {input.bed} |\\
+            grep -vE '^(track name|$)' |\\
+            sort -k1,1 -k2,2n -k3,3n |\\
+            bgzip -@ {threads} -c > {output.bed}
+        tabix {output.bed}
+        """
+
+rule finemo_cc_mean_hsc_unified_annot_bed_top:
+    input:
+        csv="results/chrombpnet_nobias/hsc_unified/{sample2}/mean/modisco/{score_type}_scores/df_motifs.csv.gz",
+        bed="results/chrombpnet_nobias/hsc_unified/{sample1}/mean/finemo_cross_check/{score_type}_scores/{sample2}/hits.sorted.bed.gz",
+    output:
+        bed="results/chrombpnet_nobias/hsc_unified/{sample1}/mean/finemo_cross_check/{score_type}_scores/{sample2}/hits.top_tf.bed.bgz",
+        tbi="results/chrombpnet_nobias/hsc_unified/{sample1}/mean/finemo_cross_check/{score_type}_scores/{sample2}/hits.top_tf.bed.bgz.tbi"
+    params:
+        json=config['meme']['json']
+    wildcard_constraints:
+        score_type="(counts|profile)"
+    threads: 1
+    resources:
+        mem_mb=4000
+    conda: "envs/plyranges.yaml"
+    script: "scripts/bed_annot_top_tf.R"
 
 ################################################################################
 ## Seqlet Overlap Analysis
