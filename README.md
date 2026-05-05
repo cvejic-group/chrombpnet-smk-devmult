@@ -20,7 +20,7 @@ defines what outputs will be generated.
 ## Pipeline Setup
 In practice, the pipeline used a mixture of Snakemake-managed Conda environments and user-managed Conda environments.
 The user-managed Conda environments are documented in the `workflow/envs` folder, with the **".full"** file suffix,
-and capture all software in those environments. These can only be replicated on Linux environments:
+and capture all software in those environments. These can only be replicated on Linux systems:
 
 ```bash
 ## chrombpnet_0_1_7
