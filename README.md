@@ -20,16 +20,18 @@ defines what outputs will be generated.
 ## Pipeline Setup
 ### Hardware Requirements
 This pipeline is both CPU and GPU intensive. For atlas-scale data, we recommend access to multiple
-NVIDIA GPUs and multi-core (64+) CPU nodes.
+CUDA-capable GPUs and multicore (64+) CPU nodes with 128GB+ memory.
 
 This pipeline was originally executed on the [UCloud](https://docs.cloud.sdu.dk/) interactive HPC system, 
-which is managed by the eScience Center at the University of Southern Denmark. Several steps, including
-ChromBPNet model training, contribution scoring, prediction track generation, and Fi-NeMo hit calling
-are GPU-accelerated, which on the UCloud system relied on NVIDIA H100 GPUs.
+which is managed by the eScience Center at the University of Southern Denmark
+and provided access to GPU nodes with 4 x NVIDIA H100s, 192 x86_64 cores, and 768GB RAM.
+
+Several steps, including ChromBPNet model training, contribution scoring, prediction track generation, and Fi-NeMo hit calling
+are GPU-accelerated.
 In total, we trained 36 celltype models and 14 HSC developmental time models, each in 5-fold.
 This required **~5,000 GPU hours**.
 
-Additionally, the TF-MoDiScO step is CPU intensive, with a typical run requiring ~500 CPU hours/model
+Additionally, the TF-MoDiScO step is CPU intensive, with a typical run requiring **~500 CPU hours/model**
 to cluster seqlets and call *de novo* motifs.
 
 ### Software
