@@ -18,9 +18,24 @@ defines what outputs will be generated.
 - additional BED, BEDPE, and BigWig files representing the putative footprints and contribution scores
 
 ## Pipeline Setup
+### Hardware Requirements
+This pipeline is both CPU and GPU intensive. For atlas-scale data, we recommend access to multiple
+NVIDIA GPUs and multi-core (64+) CPU nodes.
+
+This pipeline was originally executed on the [UCloud](https://docs.cloud.sdu.dk/) interactive HPC system, 
+which is managed by the eScience Center at the University of Southern Denmark. Several steps, including
+ChromBPNet model training, contribution scoring, prediction track generation, and Fi-NeMo hit calling
+are GPU-accelerated, which on the UCloud system relied on NVIDIA H100 GPUs.
+In total, we trained 36 celltype models and 14 HSC developmental time models, each in 5-fold.
+This required **~5,000 GPU hours**.
+
+Additionally, the TF-MoDiScO step is CPU intensive, with a typical run requiring ~500 CPU hours/model
+to cluster seqlets and call *de novo* motifs.
+
+### Software
 In practice, the pipeline used a mixture of Snakemake-managed Conda environments and user-managed Conda environments.
-The user-managed Conda environments are documented in the `workflow/envs` folder, with the **".full"** file suffix,
-and capture all software in those environments. These can only be replicated on Linux systems:
+The user-managed Conda environments are documented in the `workflow/envs` folder, with the *".full"* file suffix,
+and capture all software in those environments. These can only be replicated on **Linux systems**:
 
 ```bash
 ## chrombpnet_0_1_7
