@@ -4,14 +4,39 @@
 This is a Snakemake pipeline for running ChromBPNet, TF-MoDiScO, and Fi-NeMo on pseudobulked snATAC-seq data.
 
 ## Overview
-The pipeline uses the arguments in `config/config.yaml` to define what files are going to be used in TF footprinting.
-The pipeline primarily runs using a pretrained ATAC bias model, however, some rules are implemented to train *de novo* bias. In practice, we found that the pretrained bias model did not lead to any substantial residual Tn5 footprints in the no bias model, and therefore was sufficient. The Snakefile `MAIN` section 
-defines what outputs will be generated.
+The pipeline uses the arguments in [`config/config.yaml`](config/config.yaml) to define what files are going to be used in TF footprinting.
+The pipeline primarily runs using a pretrained ATAC bias model, however, some rules are implemented to train *de novo* bias. In practice, we found that the pretrained bias model did not lead to any substantial residual Tn5 footprints in the no bias model, and therefore was sufficient. The Snakefile `MAIN` section defines what outputs will be generated.
+
+In summary, deduplicated pseudobulk BAM files, peak BED files, and peak-gene link BEDPE files were provided as inputs.
+The hg38 reference genome from ENCODE was used for input DNA sequence, and ENCODE blacklist regions used to exclude peaks.
+A pretrained K562 ATAC-seq bias model (ENCSR868FGK_bias_fold_0.h5) was used for the ChromBPNet bias model and training folds
+were split using the predefined folds defined in https://zenodo.org/record/7445373.
+Annotation of Modisco *de novo* motif clusters was done using HOCOMOCO v13.
 
 ### Inputs
+#### Data
 - `samples` - dictionary of deduplicated BAM files
-- `peak_bed` - dictionary of BED files to be used in model training
+- `peak_bed` - dictionary of peak BED files to be used in model training
 - `peak_gene_link` (optional) - dictionary of BEDPE files defining peak-gene links
+
+In practice, the BAM, BED, and peak-gene link files were generated with scripts available in the 
+[**cvejic-group/hFL-hematopoiesis** repository](https://github.com/cvejic-group/hFL-hematopoiesis).
+Specifically, we can direct to:
+
+- [`misc/bam_frag_per_cell/04.prep_dedup.py`](https://github.com/cvejic-group/hFL-hematopoiesis/blob/main/misc/bam_frag_per_cell/04.prep_dedup.py) for generation of celltype/timepoint BAM files
+- [`annotation/03.archr/archr.getPeakBED.R`](https://github.com/cvejic-group/hFL-hematopoiesis/blob/main/annotation/03.archr/archr.getPeakBED.R) for generation of peak BED files (500 nt, centered summit)
+- [`peak_gene_links/03.make_bedpe.R`](https://github.com/cvejic-group/hFL-hematopoiesis/blob/main/peak_gene_links/03.make_bedpe.R) for generation of peak-gene link BEDPE files
+
+Note that as unified peak set was created specficially for the HSC developmental timecourse analysis.
+This was created using the script at [`workflow/scripts/unify_bed_files.R`](workflow/scripts/unify_bed_files.R).
+
+#### Resource Files
+Additional resource files are specified in the [`config/config.yaml`](config/config.yaml) and are configured for automated download.
+This includes:
+- hg38 genome FASTA and chrom.sizes
+- ENCODE blacklist regions
+- K562 ChromBPNet ATAC bias model
+- HOCOMOCO v13 MEME and JSON files
 
 ### Outputs
 - standard ChromBPNet, TF-MoDiScO, and Fi-NeMo outputs
