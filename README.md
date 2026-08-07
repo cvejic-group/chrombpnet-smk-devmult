@@ -93,6 +93,15 @@ pushd ${CONDA_PREFIX}/envs/modiscolite_2_2_1/lib/python3.10/site-packages
 popd
 ```
 
+### Cloning
+Clone this repository with:
+
+```bash
+git clone https://github.com/cvejic-group/chrombpnet-smk-devmult.git
+```
+
+Expected install time: < 1 minute.
+
 ## Running the Pipeline
 The pipeline has been previously run with Snakemake v8.27 in SLURM-based mode.
 It is expected to run with Conda+Mamba (Miniforge installation).
